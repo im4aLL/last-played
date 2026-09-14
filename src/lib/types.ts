@@ -61,6 +61,47 @@ export type MediaDetail = {
 
 export type EpisodeWatchState = "unwatched" | "in-progress" | "watched";
 
+export type ScanMatch = {
+  path: string;
+  fileName: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  episodeId: string;
+  episodeName: string;
+  notes: string[];
+  conflict: boolean;
+};
+
+export type ScanUnmatched = {
+  path: string;
+  fileName: string;
+  reason: string;
+};
+
+export type ScanIgnored = {
+  path: string;
+  fileName: string;
+  reason: string;
+};
+
+export type ScanProposal = {
+  folder: string;
+  mediaId: string;
+  auto: ScanMatch[];
+  needsConfirmation: ScanMatch[];
+  unmatched: ScanUnmatched[];
+  ignored: ScanIgnored[];
+};
+
+export type ScanMatchInput = {
+  episodeId: string;
+  path: string;
+};
+
+export type AppliedScan = {
+  linked: number;
+};
+
 export type TmdbSearchResult = {
   tmdbId: number;
   mediaType: MediaType;

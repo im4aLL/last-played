@@ -21,3 +21,12 @@ export async function pickVideoFile(): Promise<string | null> {
   });
   return typeof selected === "string" ? selected : null;
 }
+
+export async function pickFolder(): Promise<string | null> {
+  const selected = await open({
+    multiple: false,
+    directory: true,
+    title: "Choose a folder to scan",
+  });
+  return typeof selected === "string" ? selected : null;
+}

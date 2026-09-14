@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import LinkFileButton from "@/features/linking/link-file-button";
 import LinkedFile from "@/features/linking/linked-file";
+import ScanFolderButton from "@/features/linking/scan-folder-button";
 import { formatCount, formatRuntime } from "@/lib/format";
 import { posterHue } from "@/lib/poster";
 import { progressRatio, type MediaDetail } from "@/lib/types";
@@ -34,7 +35,7 @@ export default function MediaHero({ detail }: MediaHeroProps) {
 
   return (
     <section className="relative">
-      <div className="relative h-72 overflow-hidden bg-muted md:h-96">
+      <div className="relative h-96 overflow-hidden bg-muted md:h-[30rem] lg:h-[34rem]">
         {detail.backdropUrl ? (
           <img
             src={detail.backdropUrl}
@@ -105,6 +106,13 @@ export default function MediaHero({ detail }: MediaHeroProps) {
                 ) : (
                   <LinkFileButton mediaId={detail.id} size="lg" />
                 ))}
+
+              {detail.type === "tv" && detail.seasons.length > 0 && (
+                <ScanFolderButton
+                  mediaId={detail.id}
+                  seasons={detail.seasons}
+                />
+              )}
             </div>
           </div>
         </div>

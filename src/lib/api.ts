@@ -7,10 +7,13 @@ import type {
 } from "./app-config";
 import type {
   AddedMedia,
+  AppliedScan,
   MediaDetail,
   MediaItem,
   MediaPreview,
   MediaType,
+  ScanMatchInput,
+  ScanProposal,
   TmdbSearchResult,
   VideoFile,
 } from "./types";
@@ -93,4 +96,18 @@ export function linkEpisodeFile(
 
 export function unlinkVideoFile(videoFileId: string): Promise<void> {
   return invoke<void>("unlink_video_file", { videoFileId });
+}
+
+export function scanSeriesFolder(
+  mediaId: string,
+  folder: string,
+): Promise<ScanProposal> {
+  return invoke<ScanProposal>("scan_series_folder", { mediaId, folder });
+}
+
+export function applyScanMatches(
+  mediaId: string,
+  matches: ScanMatchInput[],
+): Promise<AppliedScan> {
+  return invoke<AppliedScan>("apply_scan_matches", { mediaId, matches });
 }

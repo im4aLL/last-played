@@ -10,7 +10,7 @@ import { useMedia } from "@/features/media/use-media";
 function MediaDetailSkeleton() {
   return (
     <div>
-      <Skeleton className="h-40 w-full rounded-none md:h-60" />
+      <Skeleton className="h-96 w-full rounded-none md:h-[30rem] lg:h-[34rem]" />
       <div className="px-6 md:px-8">
         <div className="-mt-16 flex flex-col gap-5 sm:flex-row sm:gap-6 md:-mt-24">
           <Skeleton className="aspect-[2/3] w-28 shrink-0 rounded-lg md:w-40" />

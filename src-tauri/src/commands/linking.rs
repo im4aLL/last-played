@@ -39,7 +39,7 @@ impl From<VideoFile> for VideoFileInfo {
     }
 }
 
-fn probe_file(path: &str) -> Result<(Option<i64>, Option<i64>, Option<String>)> {
+pub(crate) fn probe_file(path: &str) -> Result<(Option<i64>, Option<i64>, Option<String>)> {
     let metadata = std::fs::metadata(path)?;
     let size_bytes = i64::try_from(metadata.len()).ok();
     let mtime = metadata

@@ -42,6 +42,8 @@ pub fn run() {
             commands::linking::link_movie_file,
             commands::linking::link_episode_file,
             commands::linking::unlink_video_file,
+            commands::scan::scan_series_folder,
+            commands::scan::apply_scan_matches,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
