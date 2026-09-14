@@ -8,6 +8,7 @@ import type {
   SurfaceBounds,
 } from "@/lib/api";
 import { useAppConfig } from "@/lib/app-config";
+import { toError } from "@/lib/errors";
 import { focusWebview } from "@/features/player/fullscreen";
 import {
   fetchPlaybackPlaylist,
@@ -284,9 +285,7 @@ export function usePlayer(
           }
         }
       } catch (value) {
-        setPlaybackError(
-          value instanceof Error ? value : new Error(String(value)),
-        );
+        setPlaybackError(toError(value));
       }
     },
     [measureBounds],
@@ -312,7 +311,7 @@ export function usePlayer(
         setLoad({
           key: requestKey,
           status: "error",
-          error: value instanceof Error ? value : new Error(String(value)),
+          error: toError(value),
         });
       },
     );

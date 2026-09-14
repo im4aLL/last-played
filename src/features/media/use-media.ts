@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getMedia } from "@/lib/api";
+import { toError } from "@/lib/errors";
 import type { MediaDetail } from "@/lib/types";
 
 export type MediaStatus = "loading" | "error" | "ready";
@@ -27,10 +28,14 @@ export function useMedia(id: string): MediaState {
         ? "error"
         : "ready";
 
+  const rawError = enabled
+    ? query.error
+    : new Error("No media id was provided.");
+
   return {
     status,
     detail: query.data ?? null,
-    error: enabled ? query.error : new Error("No media id was provided."),
+    error: rawError == null ? null : toError(rawError),
     reload: () => {
       void query.refetch();
     },

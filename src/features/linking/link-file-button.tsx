@@ -3,6 +3,7 @@ import { Link2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLinkFile } from "@/features/linking/use-link-file";
 import { pickVideoFile } from "@/features/linking/video-file";
+import { errorMessage } from "@/lib/errors";
 
 type LinkFileButtonProps = {
   mediaId: string;
@@ -34,7 +35,7 @@ export default function LinkFileButton({
         await linkMovie.mutateAsync(path);
       }
     } catch (value) {
-      setError(value instanceof Error ? value.message : String(value));
+      setError(errorMessage(value));
     } finally {
       setPicking(false);
     }

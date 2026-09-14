@@ -6,6 +6,7 @@ import ScanPreviewSheet, {
 } from "@/features/linking/scan-preview";
 import { useScanFolder } from "@/features/linking/use-scan";
 import { pickFolder } from "@/features/linking/video-file";
+import { errorMessage } from "@/lib/errors";
 import type { ScanProposal, Season } from "@/lib/types";
 
 type ScanFolderButtonProps = {
@@ -49,7 +50,7 @@ export default function ScanFolderButton({
       setScanId((current) => current + 1);
       setOpen(true);
     } catch (value) {
-      setError(value instanceof Error ? value.message : String(value));
+      setError(errorMessage(value));
     }
   }
 

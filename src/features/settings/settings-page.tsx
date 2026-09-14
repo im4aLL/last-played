@@ -21,6 +21,7 @@ import { Slider } from "@/components/ui/slider";
 import { useSyncNow, useSyncStatus } from "@/features/sync/use-sync";
 import { testDbConnection } from "@/lib/api";
 import { LANGUAGE_OPTIONS, useAppConfig, type DbMode } from "@/lib/app-config";
+import { errorMessage } from "@/lib/errors";
 
 function SectionCard({
   icon: Icon,
@@ -120,7 +121,7 @@ export default function SettingsPage() {
       const result = await testDbConnection();
       setTestResult(`Connected. Schema version ${result.schemaVersion}.`);
     } catch (cause) {
-      setTestResult(cause instanceof Error ? cause.message : String(cause));
+      setTestResult(errorMessage(cause));
     } finally {
       setTesting(false);
     }
@@ -128,7 +129,7 @@ export default function SettingsPage() {
 
   const handleModeChange = (value: string) => {
     void setDbMode(value as DbMode).catch((cause) => {
-      setTestResult(cause instanceof Error ? cause.message : String(cause));
+      setTestResult(errorMessage(cause));
     });
   };
 

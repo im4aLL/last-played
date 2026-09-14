@@ -19,6 +19,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useScanFolder } from "@/features/linking/use-scan";
+import { errorMessage } from "@/lib/errors";
 import type { ScanMatch, ScanProposal } from "@/lib/types";
 
 export type EpisodeOption = {
@@ -57,8 +58,7 @@ function toRow(match: ScanMatch, auto: boolean): Row {
 }
 
 function errorText(error: unknown): string | null {
-  if (!error) return null;
-  return error instanceof Error ? error.message : String(error);
+  return error ? errorMessage(error) : null;
 }
 
 function MatchRow({

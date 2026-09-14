@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { addMediaFromTmdb, previewTmdbMedia, searchTmdb } from "@/lib/api";
 import { useAppConfig } from "@/lib/app-config";
+import { errorMessage } from "@/lib/errors";
 import { formatAirDate, formatCount, formatRuntime } from "@/lib/format";
 import type { AddedMedia, MediaPreview, TmdbSearchResult } from "@/lib/types";
 
@@ -33,10 +34,6 @@ type PreviewState =
   | { status: "loading" }
   | { status: "ready"; preview: MediaPreview }
   | { status: "error"; error: string };
-
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
-}
 
 function SearchResultCard({
   result,

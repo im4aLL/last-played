@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { continueWatching, listMedia } from "@/lib/api";
+import { toError } from "@/lib/errors";
 import type { MediaItem } from "@/lib/types";
 
 export type LibraryStatus = "loading" | "error" | "ready";
@@ -131,11 +132,13 @@ export function useLibrary(): LibraryData {
         ? "error"
         : "ready";
 
+  const rawError = query.error ?? continueQuery.error;
+
   return {
     status,
     items: query.data ?? [],
     continueWatching: continueQuery.data ?? [],
-    error: query.error ?? continueQuery.error,
+    error: rawError == null ? null : toError(rawError),
     reload: () => {
       void query.refetch();
       void continueQuery.refetch();

@@ -6,6 +6,7 @@ import SettingField from "@/components/app/setting-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppConfig, type DbMode } from "@/lib/app-config";
+import { errorMessage } from "@/lib/errors";
 
 const MODE_OPTIONS: {
   mode: DbMode;
@@ -83,7 +84,7 @@ export default function SetupPage() {
       );
       navigate("/");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(errorMessage(cause));
     } finally {
       setSubmitting(false);
     }
