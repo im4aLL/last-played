@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { Check, Play, Undo2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import PosterArt from "@/components/app/poster-art";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import LinkFileButton from "@/features/linking/link-file-button";
 import LinkedFile from "@/features/linking/linked-file";
 import ScanFolderButton from "@/features/linking/scan-folder-button";
+import { useSetWatched } from "@/features/media/use-watched";
 import { formatCount, formatRuntime } from "@/lib/format";
 import { posterHue } from "@/lib/poster";
 import { progressRatio, type MediaDetail } from "@/lib/types";
@@ -22,7 +23,18 @@ export default function MediaHero({ detail }: MediaHeroProps) {
   );
   const ratio = progressRatio(detail.progress);
   const isResumable = ratio != null && ratio > 0 && !detail.progress?.watched;
+  const resume = detail.resume;
+  const watched = detail.progress?.watched ?? false;
+  const setWatched = useSetWatched();
   const hue = posterHue(detail.title);
+  const playHref = resume
+    ? `/player/${detail.id}?episode=${resume.episodeId}`
+    : `/player/${detail.id}`;
+  const playLabel = resume
+    ? `Resume S${String(resume.seasonNumber).padStart(2, "0")}E${String(resume.episodeNumber).padStart(2, "0")}`
+    : isResumable
+      ? "Resume"
+      : "Play";
 
   const meta = [
     detail.year != null ? String(detail.year) : null,
@@ -93,12 +105,26 @@ export default function MediaHero({ detail }: MediaHeroProps) {
             )}
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Button asChild size="lg">
-                <Link to={`/player/${detail.id}`}>
+              <Button asChild size="lg" title={resume?.name}>
+                <Link to={playHref}>
                   <Play />
-                  {isResumable ? "Resume" : "Play"}
+                  {playLabel}
                 </Link>
               </Button>
+
+              {detail.type === "movie" && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  disabled={setWatched.isPending}
+                  onClick={() =>
+                    setWatched.mutate({ mediaId: detail.id, watched: !watched })
+                  }
+                >
+                  {watched ? <Undo2 /> : <Check />}
+                  {watched ? "Mark unwatched" : "Mark watched"}
+                </Button>
+              )}
 
               {detail.type === "movie" &&
                 (detail.videoFile ? (

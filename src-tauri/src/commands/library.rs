@@ -6,20 +6,12 @@ use tauri::State;
 use crate::commands::linking::VideoFileInfo;
 use crate::db::repositories::{
     episode as episode_repo, media_item as media_repo, season as season_repo,
-    video_file as video_file_repo,
+    video_file as video_file_repo, watch_progress as watch_repo,
 };
-use crate::domain::{Episode, MediaItem, MediaType, VideoFile};
+use crate::domain::{Episode, MediaItem, MediaType, VideoFile, WatchProgress};
 use crate::error::{AppError, Result};
-use crate::services::tmdb::{backdrop_url, poster_url};
+use crate::services::tmdb::{backdrop_url, poster_url, still_url};
 use crate::state::AppState;
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WatchProgress {
-    pub position_seconds: i64,
-    pub duration_seconds: i64,
-    pub watched: bool,
-}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +32,7 @@ pub struct EpisodeDetail {
     pub episode_number: i64,
     pub name: String,
     pub overview: Option<String>,
+    pub still_url: Option<String>,
     pub air_date: Option<String>,
     pub runtime_minutes: Option<i64>,
     pub file_linked: bool,
@@ -58,6 +51,15 @@ pub struct SeasonDetail {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ResumePoint {
+    pub episode_id: String,
+    pub season_number: i64,
+    pub episode_number: i64,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MediaDetail {
     pub id: String,
     #[serde(rename = "type")]
@@ -71,6 +73,7 @@ pub struct MediaDetail {
     pub runtime_minutes: Option<i64>,
     pub genres: Vec<String>,
     pub progress: Option<WatchProgress>,
+    pub resume: Option<ResumePoint>,
     pub video_file: Option<VideoFileInfo>,
     pub seasons: Vec<SeasonDetail>,
 }
@@ -85,7 +88,7 @@ fn preferred_date(item: &MediaItem) -> Option<&str> {
         .or(item.first_air_date.as_deref())
 }
 
-fn summary_from(item: MediaItem) -> MediaSummary {
+pub(crate) fn summary_from(item: MediaItem, progress: Option<WatchProgress>) -> MediaSummary {
     let year = year_from_date(preferred_date(&item));
     MediaSummary {
         id: item.id,
@@ -93,22 +96,40 @@ fn summary_from(item: MediaItem) -> MediaSummary {
         title: item.title,
         year,
         poster_url: poster_url(item.poster_path.as_deref()),
-        progress: None,
+        progress,
     }
 }
 
-fn episode_detail(episode: Episode, video_file: Option<VideoFile>) -> EpisodeDetail {
+fn episode_detail(
+    episode: Episode,
+    video_file: Option<VideoFile>,
+    progress: Option<WatchProgress>,
+) -> EpisodeDetail {
     let file_linked = video_file.is_some();
     EpisodeDetail {
         id: episode.id,
         episode_number: episode.episode_number,
         name: episode.name,
         overview: episode.overview,
+        still_url: still_url(episode.still_path.as_deref()),
         air_date: episode.air_date,
         runtime_minutes: episode.runtime,
         file_linked,
         video_file: video_file.map(VideoFileInfo::from),
-        progress: None,
+        progress,
+    }
+}
+
+/// The progress a poster or card should show for a media item: the movie's own
+/// progress, or for a show the most recently watched in-progress episode.
+/// Rows arrive newest-first, so the first match wins.
+fn progress_for_media(rows: &[WatchProgress], item: &MediaItem) -> Option<WatchProgress> {
+    match item.media_type {
+        MediaType::Movie => rows.iter().find(|row| row.episode_id.is_none()).cloned(),
+        MediaType::Tv => rows
+            .iter()
+            .find(|row| row.episode_id.is_some() && !row.watched && row.position_seconds > 0.0)
+            .cloned(),
     }
 }
 
@@ -116,7 +137,24 @@ fn episode_detail(episode: Episode, video_file: Option<VideoFile>) -> EpisodeDet
 pub async fn list_media(state: State<'_, AppState>) -> Result<Vec<MediaSummary>> {
     let connection = state.database().await?.connect()?;
     let items = media_repo::list_all(&connection).await?;
-    Ok(items.into_iter().map(summary_from).collect())
+    let progress = watch_repo::list_all(&connection).await?;
+
+    let mut by_media: HashMap<String, Vec<WatchProgress>> = HashMap::new();
+    for row in progress {
+        by_media
+            .entry(row.media_item_id.clone())
+            .or_default()
+            .push(row);
+    }
+
+    Ok(items
+        .into_iter()
+        .map(|item| {
+            let rows = by_media.remove(&item.id).unwrap_or_default();
+            let progress = progress_for_media(&rows, &item);
+            summary_from(item, progress)
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -130,6 +168,31 @@ pub async fn get_media(state: State<'_, AppState>, media_id: String) -> Result<M
     let episodes = episode_repo::list_for_media(&connection, &media_id).await?;
     let files =
         video_file_repo::list_for_media(&connection, &media_id, &state.config().device_id).await?;
+
+    let progress_rows = watch_repo::list_for_media(&connection, &media_id).await?;
+    // Drives the hero's Resume label: a movie's own progress, or a show's most
+    // recently watched in-progress episode.
+    let media_progress = progress_for_media(&progress_rows, &item);
+    let resume = progress_rows
+        .iter()
+        .find(|row| row.episode_id.is_some() && !row.watched && row.position_seconds > 0.0)
+        .and_then(|row| {
+            let episode_id = row.episode_id.as_deref()?;
+            let episode = episodes.iter().find(|episode| episode.id == episode_id)?;
+            let season = seasons
+                .iter()
+                .find(|season| season.id == episode.season_id)?;
+            Some(ResumePoint {
+                episode_id: episode.id.clone(),
+                season_number: season.season_number,
+                episode_number: episode.episode_number,
+                name: episode.name.clone(),
+            })
+        });
+    let mut progress: HashMap<String, WatchProgress> = progress_rows
+        .into_iter()
+        .map(|row| (row.target_id().to_string(), row))
+        .collect();
 
     let mut files_by_episode: HashMap<String, VideoFile> = HashMap::new();
     let mut movie_file: Option<VideoFile> = None;
@@ -162,7 +225,8 @@ pub async fn get_media(state: State<'_, AppState>, media_id: String) -> Result<M
                     .into_iter()
                     .map(|episode| {
                         let file = files_by_episode.remove(&episode.id);
-                        episode_detail(episode, file)
+                        let episode_progress = progress.remove(&episode.id);
+                        episode_detail(episode, file, episode_progress)
                     })
                     .collect(),
             }
@@ -194,7 +258,8 @@ pub async fn get_media(state: State<'_, AppState>, media_id: String) -> Result<M
         release_date: date.map(str::to_string),
         runtime_minutes: runtime,
         genres: Vec::new(),
-        progress: None,
+        progress: media_progress,
+        resume,
         video_file: movie_file.map(VideoFileInfo::from),
         seasons: season_details,
     })

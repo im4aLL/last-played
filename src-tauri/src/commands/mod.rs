@@ -5,3 +5,4 @@ pub mod linking;
 pub mod media;
 pub mod player;
 pub mod scan;
+pub mod watch;

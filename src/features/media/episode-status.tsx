@@ -1,10 +1,10 @@
-import { Check, FileCheck2, FileX2, Play } from "lucide-react";
+import { Check, Play } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "cn";
 import LinkFileButton from "@/features/linking/link-file-button";
 import LinkedFile from "@/features/linking/linked-file";
+import { useSetWatched } from "@/features/media/use-watched";
 import { episodeWatchState, type Episode } from "@/lib/types";
 
 type EpisodeStatusProps = {
@@ -19,6 +19,16 @@ export default function EpisodeStatus({
   className,
 }: EpisodeStatusProps) {
   const watchState = episodeWatchState(episode.progress);
+  const watched = episode.progress?.watched ?? false;
+  const setWatched = useSetWatched();
+
+  const stateControl =
+    watchState === "in-progress"
+      ? { variant: "outline" as const, label: "In progress", icon: Play }
+      : watchState === "watched"
+        ? { variant: "outline" as const, label: "Watched", icon: Check }
+        : { variant: "ghost" as const, label: "Mark watched", icon: Check };
+  const StateIcon = stateControl.icon;
 
   return (
     <div
@@ -28,35 +38,32 @@ export default function EpisodeStatus({
       )}
     >
       {episode.videoFile && (
-        <Button asChild size="xs" variant="secondary">
+        <Button asChild size="xs" variant="default">
           <Link to={`/player/${mediaId}?episode=${episode.id}`}>
             <Play />
-            Play
+            {watchState === "in-progress" ? "Resume" : "Play"}
           </Link>
         </Button>
       )}
 
-      <Badge
-        variant={episode.fileLinked ? "secondary" : "outline"}
-        className={episode.fileLinked ? undefined : "text-muted-foreground"}
+      <Button
+        type="button"
+        size="xs"
+        variant={stateControl.variant}
+        title={watched ? "Mark as unwatched" : "Mark as watched"}
+        aria-label={watched ? "Mark as unwatched" : "Mark as watched"}
+        disabled={setWatched.isPending}
+        onClick={() =>
+          setWatched.mutate({
+            mediaId,
+            episodeId: episode.id,
+            watched: !watched,
+          })
+        }
       >
-        {episode.fileLinked ? <FileCheck2 /> : <FileX2 />}
-        {episode.fileLinked ? "Linked" : "Unlinked"}
-      </Badge>
-
-      {watchState === "watched" && (
-        <Badge>
-          <Check />
-          Watched
-        </Badge>
-      )}
-
-      {watchState === "in-progress" && (
-        <Badge variant="secondary">
-          <Play />
-          In progress
-        </Badge>
-      )}
+        <StateIcon />
+        {stateControl.label}
+      </Button>
 
       {episode.videoFile ? (
         <LinkedFile mediaId={mediaId} file={episode.videoFile} />

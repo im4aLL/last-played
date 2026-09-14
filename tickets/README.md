@@ -27,8 +27,8 @@ Each ticket is a standalone file named `TNNN-short-title.md` and carries its own
 | T009 | Wire library and media detail to real data | 2 - Functionality | T003, T004, T008 | Done |
 | T010 | Link a single movie or episode file | 2 - Functionality | T009 | Done |
 | T011 | Bulk folder scan and apply matches | 2 - Functionality | T010 | Done |
-| T012 | Embedded libVLC playback (spike first) | 2 - Functionality | T006, T010 | In Progress |
-| T013 | Resume and watched tracking | 2 - Functionality | T012 | Todo |
+| T012 | Embedded libVLC playback (spike first) | 2 - Functionality | T006, T010 | Done |
+| T013 | Resume and watched tracking | 2 - Functionality | T012 | Done |
 | T014 | Turso remote database and sync | 2 - Functionality | T007, T009 | Todo |
 | T015 | Subtitles, audio tracks, preferences | 2 - Functionality | T012, T013 | Todo |
 | T016 | Dashboard and library polish | 2 - Functionality | T009, T011, T013 | Todo |

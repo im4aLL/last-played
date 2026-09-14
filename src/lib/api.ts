@@ -16,6 +16,7 @@ import type {
   ScanProposal,
   TmdbSearchResult,
   VideoFile,
+  WatchProgress,
 } from "./types";
 
 export function getConfig(): Promise<AppConfig> {
@@ -78,6 +79,46 @@ export function listMedia(): Promise<MediaItem[]> {
 
 export function getMedia(mediaId: string): Promise<MediaDetail> {
   return invoke<MediaDetail>("get_media", { mediaId });
+}
+
+export function saveProgress(input: {
+  mediaId: string;
+  episodeId?: string | null;
+  positionSeconds: number;
+  durationSeconds: number;
+}): Promise<WatchProgress> {
+  return invoke<WatchProgress>("save_progress", {
+    mediaId: input.mediaId,
+    episodeId: input.episodeId ?? null,
+    positionSeconds: input.positionSeconds,
+    durationSeconds: input.durationSeconds,
+  });
+}
+
+export function getProgress(
+  mediaId: string,
+  episodeId?: string | null,
+): Promise<WatchProgress | null> {
+  return invoke<WatchProgress | null>("get_progress", {
+    mediaId,
+    episodeId: episodeId ?? null,
+  });
+}
+
+export function setWatched(
+  mediaId: string,
+  episodeId: string | undefined,
+  watched: boolean,
+): Promise<WatchProgress> {
+  return invoke<WatchProgress>("set_watched", {
+    mediaId,
+    episodeId: episodeId ?? null,
+    watched,
+  });
+}
+
+export function continueWatching(): Promise<MediaItem[]> {
+  return invoke<MediaItem[]>("continue_watching");
 }
 
 export function linkMovieFile(

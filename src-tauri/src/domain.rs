@@ -67,6 +67,22 @@ pub struct VideoFile {
     pub container: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WatchProgress {
+    pub media_item_id: String,
+    pub episode_id: Option<String>,
+    pub position_seconds: f64,
+    pub duration_seconds: f64,
+    pub watched: bool,
+}
+
+impl WatchProgress {
+    pub fn target_id(&self) -> &str {
+        self.episode_id.as_deref().unwrap_or(&self.media_item_id)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Episode {
     pub id: String,

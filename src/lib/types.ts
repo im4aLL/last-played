@@ -29,6 +29,7 @@ export type Episode = {
   episodeNumber: number;
   name: string;
   overview: string | null;
+  stillUrl: string | null;
   airDate: string | null;
   runtimeMinutes: number | null;
   fileLinked: boolean;
@@ -43,6 +44,13 @@ export type Season = {
   episodes: Episode[];
 };
 
+export type ResumePoint = {
+  episodeId: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  name: string;
+};
+
 export type MediaDetail = {
   id: string;
   type: MediaType;
@@ -55,6 +63,7 @@ export type MediaDetail = {
   runtimeMinutes: number | null;
   genres: string[];
   progress: WatchProgress | null;
+  resume: ResumePoint | null;
   videoFile: VideoFile | null;
   seasons: Season[];
 };

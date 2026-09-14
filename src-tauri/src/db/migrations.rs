@@ -77,6 +77,21 @@ CREATE INDEX video_file_media_item_id_idx ON video_file (media_item_id);
 CREATE INDEX video_file_episode_id_idx ON video_file (episode_id);
 ";
 
+const CREATE_WATCH_PROGRESS_TABLE: &str = "
+CREATE TABLE watch_progress (
+    target_id TEXT PRIMARY KEY,
+    media_item_id TEXT NOT NULL REFERENCES media_item(id) ON DELETE CASCADE,
+    episode_id TEXT REFERENCES episode(id) ON DELETE CASCADE,
+    position_seconds REAL NOT NULL DEFAULT 0,
+    duration_seconds REAL NOT NULL DEFAULT 0,
+    watched INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX watch_progress_media_item_id_idx ON watch_progress (media_item_id);
+CREATE INDEX watch_progress_episode_id_idx ON watch_progress (episode_id);
+";
+
 pub const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
@@ -87,6 +102,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 2,
         name: "create_linking_tables",
         sql: CREATE_LINKING_TABLES,
+    },
+    Migration {
+        version: 3,
+        name: "create_watch_progress",
+        sql: CREATE_WATCH_PROGRESS_TABLE,
     },
 ];
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "cn";
 import ControlDock from "@/features/player/control-dock";
@@ -8,6 +8,7 @@ import {
   focusWebview,
 } from "@/features/player/fullscreen";
 import KeyboardHelp from "@/features/player/keyboard-help";
+import NextEpisodePrompt from "@/features/player/next-episode-prompt";
 import PlayerHud from "@/features/player/player-hud";
 import VideoSurface from "@/features/player/video-surface";
 import {
@@ -24,7 +25,9 @@ export default function PlayerStage({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  const { state, current, commands } = controller;
+  const { state, current, next, commands } = controller;
+  const [dismissedId, setDismissedId] = useState<string | null>(null);
+  const promptDismissed = current != null && dismissedId === current.id;
 
   const commandsRef = useRef(commands);
   useEffect(() => {
@@ -248,6 +251,12 @@ export default function PlayerStage({
         controller={controller}
         onToggleFullscreen={toggleFullscreen}
         onClose={close}
+      />
+      <NextEpisodePrompt
+        open={state.status === "ended" && state.hasNext && !promptDismissed}
+        next={next}
+        onPlay={commands.next}
+        onDismiss={() => setDismissedId(current?.id ?? null)}
       />
       <KeyboardHelp open={state.helpOpen} onOpenChange={commands.setHelpOpen} />
     </div>

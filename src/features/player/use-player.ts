@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import * as api from "@/lib/api";
@@ -24,6 +25,7 @@ export const MIN_RATE = 0.25;
 export const MAX_RATE = 3;
 export const DOCK_HIDE_MS = 3000;
 export const FEEDBACK_MS = 900;
+export const PROGRESS_SAVE_INTERVAL_MS = 5000;
 
 export type PlayerPhase = "loading" | "error" | "ready";
 export type PlaybackStatus = "playing" | "paused" | "buffering" | "ended";
@@ -89,6 +91,7 @@ export type PlayerController = {
   reload: () => void;
   playlist: PlaybackPlaylist | null;
   current: PlaybackItem | null;
+  next: PlaybackItem | null;
   state: PlayerState;
   commands: PlayerCommands;
   stageRef: RefObject<HTMLDivElement | null>;
@@ -164,6 +167,7 @@ export function usePlayer(
   episodeId?: string,
 ): PlayerController {
   const preferredVolume = useAppConfig((state) => state.player.volume);
+  const queryClient = useQueryClient();
   const stageRef = useRef<HTMLDivElement | null>(null);
   const volumeAppliedRef = useRef(false);
 
@@ -187,6 +191,30 @@ export function usePlayer(
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const feedbackIdRef = useRef(0);
+
+  const currentRef = useRef<PlaybackItem | null>(null);
+  const backendRef = useRef<BackendState | null>(null);
+  const lastSaveRef = useRef(0);
+
+  const persistProgress = useCallback(
+    (item: PlaybackItem | null, state: BackendState | null, force: boolean) => {
+      if (!item?.filePath || !state?.hasMedia) return;
+      if (state.durationSeconds <= 0) return;
+      const now = Date.now();
+      if (!force && now - lastSaveRef.current < PROGRESS_SAVE_INTERVAL_MS)
+        return;
+      lastSaveRef.current = now;
+      void api
+        .saveProgress({
+          mediaId: item.mediaId,
+          episodeId: item.episodeNumber != null ? item.id : null,
+          positionSeconds: state.positionSeconds,
+          durationSeconds: state.durationSeconds,
+        })
+        .catch(() => undefined);
+    },
+    [],
+  );
 
   const showFeedback = useCallback((kind: FeedbackKind, label: string) => {
     feedbackIdRef.current += 1;
@@ -299,17 +327,21 @@ export function usePlayer(
 
   useEffect(() => {
     return () => {
+      persistProgress(currentRef.current, backendRef.current, true);
       void api.stopPlayer().catch(() => undefined);
+      // Let the library and detail views pick up the latest progress.
+      void queryClient.invalidateQueries({ queryKey: ["media"] });
     };
-  }, []);
+  }, [persistProgress, queryClient]);
 
   const switchTo = useCallback(
     (index: number) => {
       if (!playlist) return;
+      persistProgress(currentRef.current, backendRef.current, true);
       setItemIndex(index);
       void start(playlist, index);
     },
-    [playlist, start],
+    [playlist, start, persistProgress],
   );
 
   const send = useCallback((action: string, value?: number) => {
@@ -319,13 +351,28 @@ export function usePlayer(
   }, []);
 
   useEffect(() => {
+    currentRef.current = playlist?.items[itemIndex] ?? null;
+  }, [playlist, itemIndex]);
+
+  useEffect(() => {
+    backendRef.current = backend;
+  }, [backend]);
+
+  useEffect(() => {
     if (!backend?.hasMedia) return;
     if (backend.status === "ended" || backend.status === "error") return;
     const interval = setInterval(() => {
-      api.getPlayerState().then(setBackend, () => undefined);
+      api.getPlayerState().then(
+        (next) => {
+          setBackend(next);
+          backendRef.current = next;
+          persistProgress(currentRef.current, next, false);
+        },
+        () => undefined,
+      );
     }, 500);
     return () => clearInterval(interval);
-  }, [backend?.hasMedia, backend?.status]);
+  }, [backend?.hasMedia, backend?.status, persistProgress]);
 
   const clearHideTimeout = useCallback(() => {
     if (hideTimeoutRef.current !== null) {
@@ -342,6 +389,14 @@ export function usePlayer(
   }, [clearHideTimeout]);
 
   const status = backend ? mapStatus(backend.status) : "buffering";
+
+  // Persist on pause and on end so the position and watched state survive a
+  // close even if the periodic save has not fired yet.
+  useEffect(() => {
+    if (status === "paused" || status === "ended") {
+      persistProgress(currentRef.current, backendRef.current, true);
+    }
+  }, [status, persistProgress]);
 
   const statusRef = useRef(status);
   useEffect(() => {
@@ -545,6 +600,10 @@ export function usePlayer(
 
   const current = playlist?.items[itemIndex] ?? null;
 
+  const nextIndex = playlist ? stepIndex(playlist, itemIndex, 1) : itemIndex;
+  const next =
+    playlist && nextIndex !== itemIndex ? playlist.items[nextIndex] : null;
+
   const state: PlayerState = {
     status,
     positionSeconds: backend?.positionSeconds ?? 0,
@@ -573,6 +632,7 @@ export function usePlayer(
     reload: () => setReloadToken((token) => token + 1),
     playlist,
     current,
+    next,
     state,
     commands,
     stageRef,

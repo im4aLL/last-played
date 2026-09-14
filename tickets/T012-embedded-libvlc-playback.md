@@ -1,6 +1,6 @@
 # T012 - Embedded libVLC playback (spike first)
 
-- Status: In Progress
+- Status: Done
 - Phase: 2 - Functionality
 - Depends on: T006, T010 or T011 for a linked file
 - Plan refs: PLAN.md (Player design, Risks), M6

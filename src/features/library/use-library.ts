@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { listMedia } from "@/lib/api";
+import { continueWatching, listMedia } from "@/lib/api";
 import type { MediaItem } from "@/lib/types";
 
 export type LibraryRow = {
@@ -19,9 +19,16 @@ export type LibraryState = {
 
 const RECENTLY_ADDED_LIMIT = 12;
 
-function buildRows(items: MediaItem[]): LibraryRow[] {
+function buildRows(
+  continueWatchingItems: MediaItem[],
+  items: MediaItem[],
+): LibraryRow[] {
   return [
-    { id: "continue-watching", title: "Continue Watching", items: [] },
+    {
+      id: "continue-watching",
+      title: "Continue Watching",
+      items: continueWatchingItems,
+    },
     {
       id: "recently-added",
       title: "Recently Added",
@@ -45,19 +52,25 @@ export function useLibrary(): LibraryState {
     queryKey: ["media", "list"],
     queryFn: listMedia,
   });
+  const continueQuery = useQuery({
+    queryKey: ["media", "continue-watching"],
+    queryFn: continueWatching,
+  });
 
-  const status: LibraryStatus = query.isPending
-    ? "loading"
-    : query.isError
-      ? "error"
-      : "ready";
+  const status: LibraryStatus =
+    query.isPending || continueQuery.isPending
+      ? "loading"
+      : query.isError || continueQuery.isError
+        ? "error"
+        : "ready";
 
   return {
     status,
-    rows: buildRows(query.data ?? []),
-    error: query.error,
+    rows: buildRows(continueQuery.data ?? [], query.data ?? []),
+    error: query.error ?? continueQuery.error,
     reload: () => {
       void query.refetch();
+      void continueQuery.refetch();
     },
   };
 }
