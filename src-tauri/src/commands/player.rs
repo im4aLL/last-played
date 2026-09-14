@@ -146,6 +146,18 @@ pub async fn set_player_bounds(
 }
 
 #[tauri::command]
+pub async fn set_player_visible(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    visible: bool,
+) -> Result<()> {
+    if let Some(surface) = *state.surface() {
+        set_surface_hidden(&window, surface, !visible);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn stop_player(window: WebviewWindow, state: State<'_, AppState>) -> Result<()> {
     if let Some(player) = state.player().as_mut() {
         player.stop();

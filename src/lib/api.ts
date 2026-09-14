@@ -176,6 +176,10 @@ export function setPlayerBounds(bounds: SurfaceBounds): Promise<void> {
   return invoke<void>("set_player_bounds", { bounds });
 }
 
+export function setPlayerVisible(visible: boolean): Promise<void> {
+  return invoke<void>("set_player_visible", { visible });
+}
+
 export function stopPlayer(): Promise<void> {
   return invoke<void>("stop_player");
 }

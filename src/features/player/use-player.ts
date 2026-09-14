@@ -7,6 +7,7 @@ import type {
   SurfaceBounds,
 } from "@/lib/api";
 import { useAppConfig } from "@/lib/app-config";
+import { focusWebview } from "@/features/player/fullscreen";
 import {
   fetchPlaybackPlaylist,
   SUBTITLE_OFF,
@@ -22,9 +23,19 @@ export const RATE_STEP = 0.25;
 export const MIN_RATE = 0.25;
 export const MAX_RATE = 3;
 export const DOCK_HIDE_MS = 3000;
+export const FEEDBACK_MS = 900;
 
 export type PlayerPhase = "loading" | "error" | "ready";
 export type PlaybackStatus = "playing" | "paused" | "buffering" | "ended";
+
+export type FeedbackKind =
+  "play" | "pause" | "forward" | "back" | "volume" | "mute" | "unmute" | "rate";
+
+export type PlayerFeedback = {
+  id: number;
+  kind: FeedbackKind;
+  label: string;
+};
 
 export type PlayerState = {
   status: PlaybackStatus;
@@ -43,6 +54,7 @@ export type PlayerState = {
   helpOpen: boolean;
   hasNext: boolean;
   hasPrevious: boolean;
+  feedback: PlayerFeedback | null;
 };
 
 export type PlayerCommands = {
@@ -67,6 +79,7 @@ export type PlayerCommands = {
   previousSeason: () => void;
   setFullscreen: (fullscreen: boolean) => void;
   setHelpOpen: (open: boolean) => void;
+  setOverlayOpen: (open: boolean) => void;
   notifyActivity: () => void;
 };
 
@@ -169,8 +182,32 @@ export function usePlayer(
   const [fullscreen, setFullscreen] = useState(false);
   const [dockVisible, setDockVisible] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [feedback, setFeedback] = useState<PlayerFeedback | null>(null);
 
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedbackIdRef = useRef(0);
+
+  const showFeedback = useCallback((kind: FeedbackKind, label: string) => {
+    feedbackIdRef.current += 1;
+    setFeedback({ id: feedbackIdRef.current, kind, label });
+    if (feedbackTimeoutRef.current !== null) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+    feedbackTimeoutRef.current = setTimeout(() => {
+      setFeedback(null);
+      feedbackTimeoutRef.current = null;
+    }, FEEDBACK_MS);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (feedbackTimeoutRef.current !== null) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const measureBounds = useCallback((): SurfaceBounds | null => {
     const element = stageRef.current;
@@ -207,6 +244,7 @@ export function usePlayer(
         if (bounds) {
           void api.setPlayerBounds(bounds).catch(() => undefined);
         }
+        void focusWebview();
         if (!volumeAppliedRef.current) {
           volumeAppliedRef.current = true;
           const preferred = useAppConfig.getState().player.volume;
@@ -305,6 +343,42 @@ export function usePlayer(
 
   const status = backend ? mapStatus(backend.status) : "buffering";
 
+  const statusRef = useRef(status);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+  const helpOpenRef = useRef(helpOpen);
+  useEffect(() => {
+    helpOpenRef.current = helpOpen;
+  }, [helpOpen]);
+  const overlayOpenRef = useRef(false);
+  const helpWasPlayingRef = useRef(false);
+
+  const notifyActivity = useCallback(() => {
+    setDockVisible(true);
+    if (
+      statusRef.current === "playing" &&
+      !helpOpenRef.current &&
+      !overlayOpenRef.current
+    ) {
+      scheduleHide();
+    }
+  }, [scheduleHide]);
+
+  // Keep the dock awake while a track/speed panel is open.
+  const setOverlayOpen = useCallback(
+    (open: boolean) => {
+      overlayOpenRef.current = open;
+      if (open) {
+        setDockVisible(true);
+        clearHideTimeout();
+      } else if (statusRef.current === "playing" && !helpOpenRef.current) {
+        scheduleHide();
+      }
+    },
+    [clearHideTimeout, scheduleHide],
+  );
+
   useEffect(() => {
     if (status === "playing" && !helpOpen) {
       scheduleHide();
@@ -337,18 +411,51 @@ export function usePlayer(
     const currentIndex = itemIndex;
 
     return {
-      togglePlay: () => send("toggle"),
-      play: () => send("play"),
-      pause: () => send("pause"),
+      togglePlay: () => {
+        const playing = statusRef.current === "playing";
+        showFeedback(
+          playing ? "pause" : "play",
+          playing ? "Paused" : "Playing",
+        );
+        send("toggle");
+      },
+      play: () => {
+        showFeedback("play", "Playing");
+        send("play");
+      },
+      pause: () => {
+        showFeedback("pause", "Paused");
+        send("pause");
+      },
       seekTo: (seconds) => send("seek", seconds),
-      seekBy: (delta) => send("seekBy", delta),
+      seekBy: (delta) => {
+        showFeedback(
+          delta < 0 ? "back" : "forward",
+          `${delta > 0 ? "+" : ""}${delta}s`,
+        );
+        send("seekBy", delta);
+      },
       setVolume: (volume) => send("setVolume", volume),
-      adjustVolume: (delta) => send("adjustVolume", delta),
-      toggleMute: () => send("toggleMute"),
+      adjustVolume: (delta) => {
+        const next = clamp(
+          (backend?.volume ?? preferredVolume) + delta,
+          0,
+          100,
+        );
+        showFeedback(next === 0 ? "mute" : "volume", `Volume ${next}%`);
+        send("adjustVolume", delta);
+      },
+      toggleMute: () => {
+        const next = !(backend?.muted ?? false);
+        showFeedback(next ? "mute" : "unmute", next ? "Muted" : "Unmuted");
+        send("toggleMute");
+      },
       setRate: (rate) => send("setRate", rate),
       adjustRate: (delta) => {
         const current = backend?.rate ?? 1;
-        send("setRate", clamp(current + delta, MIN_RATE, MAX_RATE));
+        const next = clamp(current + delta, MIN_RATE, MAX_RATE);
+        showFeedback("rate", `${next}x`);
+        send("setRate", next);
       },
       selectAudioTrack: (trackId) => send("selectAudioTrack", trackId),
       selectSubtitleTrack: (trackId) => send("selectSubtitleTrack", trackId),
@@ -409,14 +516,32 @@ export function usePlayer(
       setFullscreen,
       setHelpOpen: (open) => {
         setHelpOpen(open);
-        if (open) setDockVisible(true);
+        if (open) {
+          setDockVisible(true);
+          // Pause so nothing is missed while the shortcuts dialog covers the
+          // video. The dialog composites over the video now, so the surface
+          // stays visible.
+          helpWasPlayingRef.current = statusRef.current === "playing";
+          if (statusRef.current === "playing") send("pause");
+        } else {
+          if (helpWasPlayingRef.current) send("play");
+          helpWasPlayingRef.current = false;
+        }
       },
-      notifyActivity: () => {
-        setDockVisible(true);
-        scheduleHide();
-      },
+      setOverlayOpen,
+      notifyActivity,
     };
-  }, [backend, itemIndex, playlist, scheduleHide, send, switchTo]);
+  }, [
+    backend,
+    itemIndex,
+    notifyActivity,
+    playlist,
+    preferredVolume,
+    send,
+    setOverlayOpen,
+    showFeedback,
+    switchTo,
+  ]);
 
   const current = playlist?.items[itemIndex] ?? null;
 
@@ -439,6 +564,7 @@ export function usePlayer(
     hasPrevious: playlist
       ? stepIndex(playlist, itemIndex, -1) !== itemIndex
       : false,
+    feedback,
   };
 
   return {

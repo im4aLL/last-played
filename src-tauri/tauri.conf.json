@@ -11,12 +11,14 @@
   },
   "app": {
     "withGlobalTauri": true,
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "last-played",
         "width": 800,
         "height": 600,
-        "maximized": true
+        "maximized": true,
+        "transparent": true
       }
     ],
     "security": {

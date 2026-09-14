@@ -48,6 +48,7 @@ pub fn run() {
             commands::player::player_command,
             commands::player::get_player_state,
             commands::player::set_player_bounds,
+            commands::player::set_player_visible,
             commands::player::stop_player,
         ])
         .run(tauri::generate_context!())

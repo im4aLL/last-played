@@ -128,3 +128,10 @@
     @apply font-sans;
   }
 }
+
+/* The player route mounts a transparent webview so the native video surface
+   composited below it (and the window's black letterbox) stays visible. */
+html[data-player="true"],
+html[data-player="true"] body {
+  background-color: transparent;
+}

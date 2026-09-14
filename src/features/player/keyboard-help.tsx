@@ -1,10 +1,10 @@
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { KEYBINDING_GROUPS } from "@/features/player/keybindings";
 
 export default function KeyboardHelp({
@@ -15,16 +15,16 @@ export default function KeyboardHelp({
   onOpenChange: (open: boolean) => void;
 }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Keyboard shortcuts</SheetTitle>
-          <SheetDescription>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Keyboard shortcuts</DialogTitle>
+          <DialogDescription>
             Playback controls for the player. Close with Esc or ?.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="space-y-6 px-4 pb-6">
+        <div className="grid gap-6 sm:grid-cols-2">
           {KEYBINDING_GROUPS.map((group) => (
             <section key={group.title} className="space-y-2">
               <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
@@ -62,7 +62,7 @@ export default function KeyboardHelp({
             </section>
           ))}
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

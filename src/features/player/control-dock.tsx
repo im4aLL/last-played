@@ -1,4 +1,6 @@
 import {
+  Check,
+  ChevronDown,
   Keyboard,
   Maximize,
   Minimize,
@@ -13,16 +15,10 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { formatTimecode } from "@/lib/format";
 import { SUBTITLE_OFF } from "@/features/player/player-mock";
@@ -63,39 +59,82 @@ function DockButton({
   );
 }
 
-function DockSelect({
+type DockMenu = "audio" | "subtitle" | "speed";
+
+function DockMenuButton({
   label,
   value,
-  options,
-  onValueChange,
+  active,
+  onClick,
   className,
 }: {
   label: string;
   value: string;
-  options: { value: string; label: string }[];
-  onValueChange: (value: string) => void;
+  active: boolean;
+  onClick: () => void;
   className?: string;
 }) {
   return (
-    <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger
-        size="sm"
-        aria-label={label}
-        className={cn(
-          "border-white/20 bg-white/5 text-white hover:bg-white/10",
-          className,
-        )}
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      aria-label={label}
+      aria-expanded={active}
+      title={label}
+      onClick={onClick}
+      className={cn(
+        "justify-between gap-1 border border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white",
+        active && "bg-white/15",
+        className,
+      )}
+    >
+      <span className="truncate">{value}</span>
+      <ChevronDown
+        className={cn("shrink-0 transition-transform", active && "rotate-180")}
+      />
+    </Button>
+  );
+}
+
+function MenuOption({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm text-white hover:bg-white/10",
+        selected && "bg-white/10",
+      )}
+    >
+      <span className="truncate">{children}</span>
+      {selected ? <Check className="size-4 shrink-0" /> : null}
+    </button>
+  );
+}
+
+function MenuPanel({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-md border border-white/10 bg-neutral-900/95 p-1.5">
+      <p className="px-2 py-1 text-xs font-medium tracking-wide text-white/40 uppercase">
+        {title}
+      </p>
+      <div className="grid max-h-48 gap-0.5 overflow-y-auto">{children}</div>
+    </div>
   );
 }
 
@@ -109,37 +148,107 @@ export default function ControlDock({
   onClose: () => void;
 }) {
   const { state, current, commands } = controller;
+  const [openMenu, setOpenMenu] = useState<DockMenu | null>(null);
 
   if (!current) return null;
 
   const isPlaying = state.status === "playing";
   const seekMax = state.durationSeconds > 0 ? state.durationSeconds : 1;
 
-  const audioOptions = state.audioTracks.map((track) => ({
-    value: String(track.id),
-    label: track.label,
-  }));
-  const subtitleOptions = [
-    { value: String(SUBTITLE_OFF), label: "Subtitles off" },
-    ...state.subtitleTracks.map((track) => ({
-      value: String(track.id),
-      label: track.label,
-    })),
-  ];
+  const audioLabel =
+    state.audioTracks.find((track) => track.id === state.audioTrackId)?.label ??
+    "Audio";
+  const subtitleLabel =
+    state.subtitleTracks.find((track) => track.id === state.subtitleTrackId)
+      ?.label ?? "Off";
+  const speedLabel = `${state.rate}x`;
+
+  const toggleMenu = (menu: DockMenu) => {
+    const next = openMenu === menu ? null : menu;
+    setOpenMenu(next);
+    commands.setOverlayOpen(next !== null);
+  };
+
+  const choose = (action: () => void) => {
+    action();
+    setOpenMenu(null);
+    commands.setOverlayOpen(false);
+  };
 
   return (
     <footer
       className={cn(
-        "relative z-20 w-full border-t border-white/10 bg-neutral-950 px-4 py-3 transition-opacity duration-200",
-        state.dockVisible ? "opacity-100" : "opacity-0",
+        "absolute inset-x-0 bottom-0 z-20 w-full bg-gradient-to-t from-black via-black/80 to-transparent px-4 pt-12 pb-3 transition-opacity duration-200",
+        state.dockVisible ? "opacity-100" : "pointer-events-none opacity-0",
       )}
+      aria-hidden={!state.dockVisible}
+      inert={!state.dockVisible}
       onPointerMove={commands.notifyActivity}
     >
-      <div className="mx-auto flex max-w-6xl flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <span className="w-14 text-right text-xs text-white/60 tabular-nums">
-            {formatTimecode(state.positionSeconds)}
-          </span>
+      <div className="flex w-full flex-col gap-2">
+        {openMenu === "audio" && (
+          <MenuPanel title="Audio track">
+            {state.audioTracks.length === 0 ? (
+              <p className="px-2 py-1.5 text-sm text-white/50">
+                No audio tracks reported yet.
+              </p>
+            ) : (
+              state.audioTracks.map((track) => (
+                <MenuOption
+                  key={track.id}
+                  selected={track.id === state.audioTrackId}
+                  onClick={() =>
+                    choose(() => commands.selectAudioTrack(track.id))
+                  }
+                >
+                  {track.label}
+                </MenuOption>
+              ))
+            )}
+          </MenuPanel>
+        )}
+
+        {openMenu === "subtitle" && (
+          <MenuPanel title="Subtitle track">
+            <MenuOption
+              selected={state.subtitleTrackId === SUBTITLE_OFF}
+              onClick={() =>
+                choose(() => commands.selectSubtitleTrack(SUBTITLE_OFF))
+              }
+            >
+              Off
+            </MenuOption>
+            {state.subtitleTracks
+              .filter((track) => track.id !== SUBTITLE_OFF)
+              .map((track) => (
+                <MenuOption
+                  key={track.id}
+                  selected={track.id === state.subtitleTrackId}
+                  onClick={() =>
+                    choose(() => commands.selectSubtitleTrack(track.id))
+                  }
+                >
+                  {track.label}
+                </MenuOption>
+              ))}
+          </MenuPanel>
+        )}
+
+        {openMenu === "speed" && (
+          <MenuPanel title="Playback speed">
+            {RATE_OPTIONS.map((rate) => (
+              <MenuOption
+                key={rate}
+                selected={rate === state.rate}
+                onClick={() => choose(() => commands.setRate(rate))}
+              >
+                {rate}x
+              </MenuOption>
+            ))}
+          </MenuPanel>
+        )}
+
+        <div className="flex w-full flex-col gap-2">
           <Slider
             value={[state.positionSeconds]}
             min={0}
@@ -147,11 +256,12 @@ export default function ControlDock({
             step={1}
             aria-label="Seek"
             onValueChange={([value]) => commands.seekTo(value)}
-            className="flex-1 [&_[data-slot=slider-range]]:bg-white [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-track]]:bg-white/20"
+            className="w-full py-2 [&_[data-slot=slider-range]]:bg-white [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-track]]:bg-white/20"
           />
-          <span className="w-14 text-xs text-white/60 tabular-nums">
-            {formatTimecode(state.durationSeconds)}
-          </span>
+          <div className="flex items-center justify-between text-xs text-white/60 tabular-nums">
+            <span>{formatTimecode(state.positionSeconds)}</span>
+            <span>{formatTimecode(state.durationSeconds)}</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -195,32 +305,25 @@ export default function ControlDock({
           </div>
 
           <div className="hidden items-center gap-1.5 lg:flex">
-            <DockSelect
+            <DockMenuButton
               label="Audio track"
-              value={String(state.audioTrackId)}
-              options={audioOptions}
-              onValueChange={(value) =>
-                commands.selectAudioTrack(Number(value))
-              }
+              value={audioLabel}
+              active={openMenu === "audio"}
+              onClick={() => toggleMenu("audio")}
               className="w-36"
             />
-            <DockSelect
+            <DockMenuButton
               label="Subtitle track"
-              value={String(state.subtitleTrackId)}
-              options={subtitleOptions}
-              onValueChange={(value) =>
-                commands.selectSubtitleTrack(Number(value))
-              }
+              value={subtitleLabel}
+              active={openMenu === "subtitle"}
+              onClick={() => toggleMenu("subtitle")}
               className="w-36"
             />
-            <DockSelect
+            <DockMenuButton
               label="Playback speed"
-              value={String(state.rate)}
-              options={RATE_OPTIONS.map((rate) => ({
-                value: String(rate),
-                label: `${rate}x`,
-              }))}
-              onValueChange={(value) => commands.setRate(Number(value))}
+              value={speedLabel}
+              active={openMenu === "speed"}
+              onClick={() => toggleMenu("speed")}
               className="w-20"
             />
           </div>
