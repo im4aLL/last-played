@@ -20,7 +20,6 @@ export const KEYBINDING_GROUPS: KeybindingGroup[] = [
       { keys: ["M"], label: "Mute" },
       { keys: ["["], label: "Slower" },
       { keys: ["]"], label: "Faster" },
-      { keys: ["Click"], label: "Play or pause the video" },
     ],
   },
   {

@@ -6,12 +6,15 @@ use tokio::sync::Mutex as AsyncMutex;
 use crate::config::{self, AppConfig};
 use crate::db::Database;
 use crate::error::Result;
+use crate::services::player::{NativeSurface, PlayerService};
 
 pub struct AppState {
     config_path: PathBuf,
     db_path: PathBuf,
     config: Mutex<AppConfig>,
     database: AsyncMutex<Option<Database>>,
+    player: Mutex<Option<PlayerService>>,
+    surface: Mutex<Option<NativeSurface>>,
 }
 
 impl AppState {
@@ -22,7 +25,21 @@ impl AppState {
             db_path,
             config: Mutex::new(config),
             database: AsyncMutex::new(None),
+            player: Mutex::new(None),
+            surface: Mutex::new(None),
         })
+    }
+
+    pub fn player(&self) -> std::sync::MutexGuard<'_, Option<PlayerService>> {
+        self.player
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    pub fn surface(&self) -> std::sync::MutexGuard<'_, Option<NativeSurface>> {
+        self.surface
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     pub fn config(&self) -> AppConfig {

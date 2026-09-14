@@ -6,11 +6,6 @@ import type {
   WatchProgress,
 } from "@/lib/types";
 
-export type PlaybackTrack = {
-  id: string;
-  label: string;
-};
-
 export type PlaybackItem = {
   id: string;
   mediaId: string;
@@ -22,8 +17,7 @@ export type PlaybackItem = {
   durationSeconds: number;
   posterUrl: string | null;
   backdropUrl: string | null;
-  audioTracks: PlaybackTrack[];
-  subtitleTracks: PlaybackTrack[];
+  filePath: string | null;
   startPositionSeconds: number;
 };
 
@@ -43,19 +37,7 @@ export type PlaybackPlaylist = {
   items: PlaybackItem[];
 };
 
-export const SUBTITLE_OFF = "off";
-
-export const AUDIO_TRACKS: PlaybackTrack[] = [
-  { id: "audio-en-5-1", label: "English 5.1" },
-  { id: "audio-en-stereo", label: "English Stereo" },
-  { id: "audio-fr-5-1", label: "French 5.1" },
-];
-
-export const SUBTITLE_TRACKS: PlaybackTrack[] = [
-  { id: "subtitle-en", label: "English" },
-  { id: "subtitle-es", label: "Spanish" },
-  { id: "subtitle-fr", label: "French" },
-];
+export const SUBTITLE_OFF = -1;
 
 const FALLBACK_DURATION_SECONDS = 45 * 60;
 
@@ -93,8 +75,7 @@ function movieItem(detail: MediaDetail): PlaybackItem {
     durationSeconds: durationFor(detail.runtimeMinutes, detail.progress),
     posterUrl: detail.posterUrl,
     backdropUrl: detail.backdropUrl,
-    audioTracks: AUDIO_TRACKS,
-    subtitleTracks: SUBTITLE_TRACKS,
+    filePath: detail.videoFile?.path ?? null,
     startPositionSeconds: startPositionFor(detail.progress),
   };
 }
@@ -115,8 +96,7 @@ function episodeItem(
     durationSeconds: durationFor(episode.runtimeMinutes, episode.progress),
     posterUrl: detail.posterUrl,
     backdropUrl: detail.backdropUrl,
-    audioTracks: AUDIO_TRACKS,
-    subtitleTracks: SUBTITLE_TRACKS,
+    filePath: episode.videoFile?.path ?? null,
     startPositionSeconds: startPositionFor(episode.progress),
   };
 }

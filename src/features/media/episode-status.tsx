@@ -1,5 +1,7 @@
 import { Check, FileCheck2, FileX2, Play } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "cn";
 import LinkFileButton from "@/features/linking/link-file-button";
 import LinkedFile from "@/features/linking/linked-file";
@@ -25,6 +27,15 @@ export default function EpisodeStatus({
         className,
       )}
     >
+      {episode.videoFile && (
+        <Button asChild size="xs" variant="secondary">
+          <Link to={`/player/${mediaId}?episode=${episode.id}`}>
+            <Play />
+            Play
+          </Link>
+        </Button>
+      )}
+
       <Badge
         variant={episode.fileLinked ? "secondary" : "outline"}
         className={episode.fileLinked ? undefined : "text-muted-foreground"}

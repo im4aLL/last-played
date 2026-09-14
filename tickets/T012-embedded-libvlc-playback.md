@@ -1,6 +1,6 @@
 # T012 - Embedded libVLC playback (spike first)
 
-- Status: Todo
+- Status: In Progress
 - Phase: 2 - Functionality
 - Depends on: T006, T010 or T011 for a linked file
 - Plan refs: PLAN.md (Player design, Risks), M6
@@ -28,3 +28,15 @@ Clicking a linked movie or episode plays it inside the app window, with the cont
 ## Out of scope
 
 - Resume persistence, next-episode auto-advance, and subtitle sidecar polish.
+
+## Progress notes
+
+Implemented end to end, pending manual verification.
+
+- `services/player` (`ffi.rs`, `mod.rs`, `embed.rs`): dynamically loads bundled/system libVLC with `libloading`, preloads `libvlccore` on macOS, sets `VLC_PLUGIN_PATH`, and wraps the play/pause/seek/volume/rate/track/state subset of the FFI it needs. Library discovery resolves `LAST_PLAYED_VLC_DIR`, then per-OS defaults (`/Applications/VLC.app` on macOS).
+- macOS embed: a child `NSView` is created on the main thread as a sibling of the webview and passed to `set_nsobject`; the frontend reports the video rect and the view is repositioned to reserve dock space. Windows uses `set_hwnd` and Linux/X11 uses `set_xwindow` through the `NativeSurface` abstraction.
+- Commands (`commands/player.rs`): `play_video`, `player_command`, `get_player_state`, `set_player_bounds`, `stop_player`, registered in `lib.rs`. The surface is hidden on stop and until first positioned.
+- Frontend: `usePlayer` now drives real playback (play on load, 500ms state polling, command dispatch), `player-mock` carries the linked file path per item, the dock uses real audio/subtitle tracks and reserved space, and linked episodes get a Play link (`/player/<mediaId>?episode=<episodeId>`). The click-on-video binding was dropped since the native surface intercepts pointer events.
+
+Remaining to verify manually: play an mkv embedded on macOS (fullscreen, seek, volume, track selection, dock hide/reveal, keys). Windows and Linux currently embed into the window handle directly and do not yet reserve dock space (the `NativeSurface` fallback path); that needs validation before this ticket is Done.
+

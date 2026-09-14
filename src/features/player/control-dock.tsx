@@ -115,14 +115,14 @@ export default function ControlDock({
   const isPlaying = state.status === "playing";
   const seekMax = state.durationSeconds > 0 ? state.durationSeconds : 1;
 
-  const audioOptions = current.audioTracks.map((track) => ({
-    value: track.id,
+  const audioOptions = state.audioTracks.map((track) => ({
+    value: String(track.id),
     label: track.label,
   }));
   const subtitleOptions = [
-    { value: SUBTITLE_OFF, label: "Subtitles off" },
-    ...current.subtitleTracks.map((track) => ({
-      value: track.id,
+    { value: String(SUBTITLE_OFF), label: "Subtitles off" },
+    ...state.subtitleTracks.map((track) => ({
+      value: String(track.id),
       label: track.label,
     })),
   ];
@@ -130,10 +130,8 @@ export default function ControlDock({
   return (
     <footer
       className={cn(
-        "absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/70 to-transparent px-4 pt-12 pb-4 transition-all duration-200",
-        state.dockVisible
-          ? "translate-y-0 opacity-100"
-          : "pointer-events-none translate-y-3 opacity-0",
+        "relative z-20 w-full border-t border-white/10 bg-neutral-950 px-4 py-3 transition-opacity duration-200",
+        state.dockVisible ? "opacity-100" : "opacity-0",
       )}
       onPointerMove={commands.notifyActivity}
     >
@@ -199,16 +197,20 @@ export default function ControlDock({
           <div className="hidden items-center gap-1.5 lg:flex">
             <DockSelect
               label="Audio track"
-              value={state.audioTrackId}
+              value={String(state.audioTrackId)}
               options={audioOptions}
-              onValueChange={commands.selectAudioTrack}
+              onValueChange={(value) =>
+                commands.selectAudioTrack(Number(value))
+              }
               className="w-36"
             />
             <DockSelect
               label="Subtitle track"
-              value={state.subtitleTrackId}
+              value={String(state.subtitleTrackId)}
               options={subtitleOptions}
-              onValueChange={commands.selectSubtitleTrack}
+              onValueChange={(value) =>
+                commands.selectSubtitleTrack(Number(value))
+              }
               className="w-36"
             />
             <DockSelect

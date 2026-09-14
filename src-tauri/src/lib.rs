@@ -44,6 +44,11 @@ pub fn run() {
             commands::linking::unlink_video_file,
             commands::scan::scan_series_folder,
             commands::scan::apply_scan_matches,
+            commands::player::play_video,
+            commands::player::player_command,
+            commands::player::get_player_state,
+            commands::player::set_player_bounds,
+            commands::player::stop_player,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

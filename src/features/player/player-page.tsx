@@ -1,5 +1,5 @@
 import { TriangleAlert } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import EmptyState from "@/components/app/empty-state";
 import { Button } from "@/components/ui/button";
 import PlayerStage from "@/features/player/player-stage";
@@ -16,13 +16,21 @@ function PlayerLoading() {
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
-  const controller = usePlayer(id ?? "");
+  const [searchParams] = useSearchParams();
+  const controller = usePlayer(
+    id ?? "",
+    searchParams.get("episode") ?? undefined,
+  );
 
   if (controller.status === "loading") {
     return <PlayerLoading />;
   }
 
-  if (controller.status === "error" || !controller.current) {
+  if (
+    controller.status === "error" ||
+    controller.error ||
+    !controller.current
+  ) {
     return (
       <div className="flex min-h-svh items-center justify-center p-6">
         <EmptyState

@@ -1,19 +1,20 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject } from "react";
+import * as api from "@/lib/api";
+import type {
+  PlayerState as BackendState,
+  PlayerTrack,
+  SurfaceBounds,
+} from "@/lib/api";
 import { useAppConfig } from "@/lib/app-config";
 import {
-  AUDIO_TRACKS,
   fetchPlaybackPlaylist,
   SUBTITLE_OFF,
   type PlaybackItem,
   type PlaybackPlaylist,
 } from "@/features/player/player-mock";
+
+export { SUBTITLE_OFF };
 
 export const SEEK_STEP_SECONDS = 10;
 export const VOLUME_STEP = 5;
@@ -23,7 +24,7 @@ export const MAX_RATE = 3;
 export const DOCK_HIDE_MS = 3000;
 
 export type PlayerPhase = "loading" | "error" | "ready";
-export type PlaybackStatus = "playing" | "paused" | "ended";
+export type PlaybackStatus = "playing" | "paused" | "buffering" | "ended";
 
 export type PlayerState = {
   status: PlaybackStatus;
@@ -33,8 +34,10 @@ export type PlayerState = {
   volume: number;
   muted: boolean;
   rate: number;
-  audioTrackId: string;
-  subtitleTrackId: string;
+  audioTrackId: number;
+  subtitleTrackId: number;
+  audioTracks: PlayerTrack[];
+  subtitleTracks: PlayerTrack[];
   fullscreen: boolean;
   dockVisible: boolean;
   helpOpen: boolean;
@@ -53,8 +56,8 @@ export type PlayerCommands = {
   toggleMute: () => void;
   setRate: (rate: number) => void;
   adjustRate: (delta: number) => void;
-  selectAudioTrack: (trackId: string) => void;
-  selectSubtitleTrack: (trackId: string) => void;
+  selectAudioTrack: (trackId: number) => void;
+  selectSubtitleTrack: (trackId: number) => void;
   cycleAudioTrack: () => void;
   cycleSubtitleTrack: () => void;
   toggleSubtitles: () => void;
@@ -75,329 +78,168 @@ export type PlayerController = {
   current: PlaybackItem | null;
   state: PlayerState;
   commands: PlayerCommands;
+  stageRef: RefObject<HTMLDivElement | null>;
 };
-
-type State = {
-  playlist: PlaybackPlaylist | null;
-  itemIndex: number;
-  status: PlaybackStatus;
-  positionSeconds: number;
-  volume: number;
-  muted: boolean;
-  rate: number;
-  audioTrackId: string;
-  subtitleTrackId: string;
-  fullscreen: boolean;
-  dockVisible: boolean;
-  helpOpen: boolean;
-};
-
-type Action =
-  | { type: "loaded"; playlist: PlaybackPlaylist }
-  | { type: "toggle-play" }
-  | { type: "play" }
-  | { type: "pause" }
-  | { type: "seek-to"; seconds: number }
-  | { type: "seek-by"; delta: number }
-  | { type: "set-volume"; volume: number }
-  | { type: "adjust-volume"; delta: number }
-  | { type: "toggle-mute" }
-  | { type: "set-rate"; rate: number }
-  | { type: "adjust-rate"; delta: number }
-  | { type: "select-audio"; trackId: string }
-  | { type: "select-subtitle"; trackId: string }
-  | { type: "cycle-audio" }
-  | { type: "cycle-subtitle" }
-  | { type: "toggle-subtitles" }
-  | { type: "next" }
-  | { type: "previous" }
-  | { type: "next-season" }
-  | { type: "previous-season" }
-  | { type: "set-fullscreen"; fullscreen: boolean }
-  | { type: "show-dock" }
-  | { type: "hide-dock" }
-  | { type: "set-help"; open: boolean }
-  | { type: "tick"; seconds: number };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function clampVolume(volume: number): number {
-  return clamp(Math.round(volume), 0, 100);
+function mapStatus(status: BackendState["status"]): PlaybackStatus {
+  switch (status) {
+    case "playing":
+      return "playing";
+    case "paused":
+      return "paused";
+    case "ended":
+      return "ended";
+    default:
+      return "buffering";
+  }
 }
 
-function clampRate(rate: number): number {
-  return clamp(Math.round(rate * 100) / 100, MIN_RATE, MAX_RATE);
-}
-
-function createInitialState(volume: number): State {
-  return {
-    playlist: null,
-    itemIndex: 0,
-    status: "paused",
-    positionSeconds: 0,
-    volume: clampVolume(volume),
-    muted: false,
-    rate: 1,
-    audioTrackId: AUDIO_TRACKS[0]?.id ?? SUBTITLE_OFF,
-    subtitleTrackId: SUBTITLE_OFF,
-    fullscreen: false,
-    dockVisible: true,
-    helpOpen: false,
-  };
-}
-
-function currentItem(state: State): PlaybackItem | null {
-  return state.playlist?.items[state.itemIndex] ?? null;
-}
-
-function durationOf(state: State): number {
-  return currentItem(state)?.durationSeconds ?? 0;
-}
-
-function pickStartIndex(playlist: PlaybackPlaylist): number {
-  const index = playlist.items.findIndex(
-    (item) => item.startPositionSeconds > 0,
+function pickStartIndex(
+  playlist: PlaybackPlaylist,
+  episodeId: string | undefined,
+): number {
+  if (episodeId) {
+    const index = playlist.items.findIndex((item) => item.id === episodeId);
+    if (index >= 0) return index;
+  }
+  const playableWithProgress = playlist.items.findIndex(
+    (item) => item.filePath != null && item.startPositionSeconds > 0,
   );
-  return index >= 0 ? index : 0;
+  if (playableWithProgress >= 0) return playableWithProgress;
+  const firstPlayable = playlist.items.findIndex(
+    (item) => item.filePath != null,
+  );
+  return firstPlayable >= 0 ? firstPlayable : 0;
 }
 
-function withItem(state: State, index: number, status: PlaybackStatus): State {
-  const item = state.playlist?.items[index];
-  if (!item) return state;
-  return {
-    ...state,
-    itemIndex: index,
-    status,
-    positionSeconds: item.startPositionSeconds,
-    audioTrackId: item.audioTracks[0]?.id ?? SUBTITLE_OFF,
-    subtitleTrackId: SUBTITLE_OFF,
-  };
+function stepIndex(
+  playlist: PlaybackPlaylist,
+  index: number,
+  direction: number,
+): number {
+  let candidate = index + direction;
+  while (candidate >= 0 && candidate < playlist.items.length) {
+    if (playlist.items[candidate]?.filePath != null) return candidate;
+    candidate += direction;
+  }
+  return index;
 }
 
-function seasonIndexOf(playlist: PlaybackPlaylist, itemId: string): number {
+function seasonIndexOfItem(playlist: PlaybackPlaylist, itemId: string): number {
   return playlist.seasons.findIndex((season) =>
     season.items.some((item) => item.id === itemId),
   );
 }
 
-function indexOfItem(playlist: PlaybackPlaylist, itemId: string): number {
-  return playlist.items.findIndex((item) => item.id === itemId);
-}
-
-function playerReducer(state: State, action: Action): State {
-  switch (action.type) {
-    case "loaded": {
-      const index = pickStartIndex(action.playlist);
-      return withItem(
-        { ...state, playlist: action.playlist },
-        index,
-        "playing",
-      );
-    }
-
-    case "toggle-play": {
-      if (state.status === "playing") {
-        return { ...state, status: "paused" };
-      }
-      if (state.status === "ended") {
-        return { ...state, positionSeconds: 0, status: "playing" };
-      }
-      return { ...state, status: "playing" };
-    }
-
-    case "play": {
-      if (state.status === "playing") return state;
-      const positionSeconds =
-        state.status === "ended" ? 0 : state.positionSeconds;
-      return { ...state, positionSeconds, status: "playing" };
-    }
-
-    case "pause":
-      return state.status === "playing"
-        ? { ...state, status: "paused" }
-        : state;
-
-    case "seek-to": {
-      const duration = durationOf(state);
-      const target = Math.max(0, action.seconds);
-      return {
-        ...state,
-        positionSeconds: duration > 0 ? Math.min(target, duration) : target,
-      };
-    }
-
-    case "seek-by": {
-      const duration = durationOf(state);
-      const target = Math.max(0, state.positionSeconds + action.delta);
-      return {
-        ...state,
-        positionSeconds: duration > 0 ? Math.min(target, duration) : target,
-      };
-    }
-
-    case "set-volume":
-      return { ...state, volume: clampVolume(action.volume) };
-
-    case "adjust-volume":
-      return { ...state, volume: clampVolume(state.volume + action.delta) };
-
-    case "toggle-mute":
-      return { ...state, muted: !state.muted };
-
-    case "set-rate":
-      return { ...state, rate: clampRate(action.rate) };
-
-    case "adjust-rate":
-      return { ...state, rate: clampRate(state.rate + action.delta) };
-
-    case "select-audio":
-      return { ...state, audioTrackId: action.trackId };
-
-    case "select-subtitle":
-      return { ...state, subtitleTrackId: action.trackId };
-
-    case "cycle-audio": {
-      const tracks = currentItem(state)?.audioTracks ?? [];
-      if (tracks.length === 0) return state;
-      const index = tracks.findIndex(
-        (track) => track.id === state.audioTrackId,
-      );
-      return {
-        ...state,
-        audioTrackId: tracks[(index + 1) % tracks.length].id,
-      };
-    }
-
-    case "cycle-subtitle": {
-      const tracks = currentItem(state)?.subtitleTracks ?? [];
-      const ids = [SUBTITLE_OFF, ...tracks.map((track) => track.id)];
-      const index = ids.indexOf(state.subtitleTrackId);
-      return {
-        ...state,
-        subtitleTrackId: ids[(index + 1) % ids.length],
-      };
-    }
-
-    case "toggle-subtitles": {
-      if (state.subtitleTrackId !== SUBTITLE_OFF) {
-        return { ...state, subtitleTrackId: SUBTITLE_OFF };
-      }
-      const first = currentItem(state)?.subtitleTracks[0]?.id;
-      return { ...state, subtitleTrackId: first ?? SUBTITLE_OFF };
-    }
-
-    case "next": {
-      if (!state.playlist) return state;
-      const index = state.itemIndex + 1;
-      if (index >= state.playlist.items.length) return state;
-      return withItem(state, index, "playing");
-    }
-
-    case "previous": {
-      if (state.positionSeconds > 5) {
-        return { ...state, positionSeconds: 0 };
-      }
-      const index = state.itemIndex - 1;
-      if (index < 0) return { ...state, positionSeconds: 0 };
-      return withItem(state, index, "playing");
-    }
-
-    case "next-season": {
-      if (!state.playlist) return state;
-      const item = currentItem(state);
-      if (!item) return state;
-      const seasonIndex = seasonIndexOf(state.playlist, item.id);
-      if (seasonIndex < 0 || seasonIndex >= state.playlist.seasons.length - 1) {
-        return state;
-      }
-      const target = state.playlist.seasons[seasonIndex + 1]?.items[0];
-      if (!target) return state;
-      const index = indexOfItem(state.playlist, target.id);
-      return index >= 0 ? withItem(state, index, "playing") : state;
-    }
-
-    case "previous-season": {
-      if (!state.playlist) return state;
-      const item = currentItem(state);
-      if (!item) return state;
-      const seasonIndex = seasonIndexOf(state.playlist, item.id);
-      if (seasonIndex <= 0) return state;
-      const target = state.playlist.seasons[seasonIndex - 1]?.items[0];
-      if (!target) return state;
-      const index = indexOfItem(state.playlist, target.id);
-      return index >= 0 ? withItem(state, index, "playing") : state;
-    }
-
-    case "set-fullscreen":
-      return { ...state, fullscreen: action.fullscreen };
-
-    case "show-dock":
-      return state.dockVisible ? state : { ...state, dockVisible: true };
-
-    case "hide-dock":
-      if (state.status !== "playing" || state.helpOpen) return state;
-      return state.dockVisible ? { ...state, dockVisible: false } : state;
-
-    case "set-help":
-      return {
-        ...state,
-        helpOpen: action.open,
-        dockVisible: action.open ? true : state.dockVisible,
-      };
-
-    case "tick": {
-      if (state.status !== "playing") return state;
-      const duration = durationOf(state);
-      const positionSeconds =
-        state.positionSeconds + action.seconds * state.rate;
-      if (duration > 0 && positionSeconds >= duration) {
-        return {
-          ...state,
-          positionSeconds: duration,
-          status: "ended",
-          dockVisible: true,
-        };
-      }
-      return { ...state, positionSeconds };
-    }
-
-    default:
-      return state;
-  }
-}
-
-type LoadState = {
-  key: string;
-  status: PlayerPhase;
-  error: Error | null;
-};
-
-export function usePlayer(mediaId: string): PlayerController {
-  const preferredVolume = useAppConfig((state) => state.player.volume);
-  const [state, dispatch] = useReducer(
-    playerReducer,
-    preferredVolume,
-    createInitialState,
+function firstPlayableInSeason(
+  playlist: PlaybackPlaylist,
+  seasonIndex: number,
+): number {
+  const target = playlist.seasons[seasonIndex]?.items.find(
+    (item) => item.filePath != null,
   );
+  if (!target) return -1;
+  return playlist.items.findIndex((item) => item.id === target.id);
+}
+
+export function usePlayer(
+  mediaId: string,
+  episodeId?: string,
+): PlayerController {
+  const preferredVolume = useAppConfig((state) => state.player.volume);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const volumeAppliedRef = useRef(false);
+
   const [reloadToken, setReloadToken] = useState(0);
-  const requestKey = `${mediaId}:${reloadToken}`;
-  const [load, setLoad] = useState<LoadState>(() => ({
-    key: requestKey,
-    status: "loading",
-    error: null,
-  }));
+  const requestKey = `${mediaId}:${episodeId ?? ""}:${reloadToken}`;
+
+  const [playlist, setPlaylist] = useState<PlaybackPlaylist | null>(null);
+  const [itemIndex, setItemIndex] = useState(0);
+  const [backend, setBackend] = useState<BackendState | null>(null);
+  const [load, setLoad] = useState<{
+    key: string;
+    status: PlayerPhase;
+    error: Error | null;
+  }>({ key: requestKey, status: "loading", error: null });
+  const [playbackError, setPlaybackError] = useState<Error | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [dockVisible, setDockVisible] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
+
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const measureBounds = useCallback((): SurfaceBounds | null => {
+    const element = stageRef.current;
+    if (!element) return null;
+    const rect = element.getBoundingClientRect();
+    return {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
+  }, []);
+
+  const start = useCallback(
+    async (list: PlaybackPlaylist, index: number) => {
+      const item = list.items[index];
+      if (!item) return;
+      if (!item.filePath) {
+        setPlaybackError(
+          new Error("No video file is linked for this title yet."),
+        );
+        return;
+      }
+
+      setPlaybackError(null);
+      try {
+        const state = await api.playVideo(
+          item.filePath,
+          item.startPositionSeconds > 0 ? item.startPositionSeconds : null,
+          measureBounds(),
+        );
+        setBackend(state);
+        const bounds = measureBounds();
+        if (bounds) {
+          void api.setPlayerBounds(bounds).catch(() => undefined);
+        }
+        if (!volumeAppliedRef.current) {
+          volumeAppliedRef.current = true;
+          const preferred = useAppConfig.getState().player.volume;
+          if (state.volume !== preferred) {
+            void api
+              .playerCommand("setVolume", preferred)
+              .then(setBackend)
+              .catch(() => undefined);
+          }
+        }
+      } catch (value) {
+        setPlaybackError(
+          value instanceof Error ? value : new Error(String(value)),
+        );
+      }
+    },
+    [measureBounds],
+  );
 
   useEffect(() => {
     let active = true;
 
     fetchPlaybackPlaylist(mediaId).then(
-      (playlist) => {
+      (result) => {
         if (!active) return;
+        const index = pickStartIndex(result, episodeId);
+        volumeAppliedRef.current = false;
+        setBackend(null);
+        setPlaybackError(null);
+        setPlaylist(result);
+        setItemIndex(index);
         setLoad({ key: requestKey, status: "ready", error: null });
-        dispatch({ type: "loaded", playlist });
+        void start(result, index);
       },
       (value: unknown) => {
         if (!active) return;
@@ -412,16 +254,40 @@ export function usePlayer(mediaId: string): PlayerController {
     return () => {
       active = false;
     };
-  }, [mediaId, requestKey]);
+  }, [mediaId, episodeId, requestKey, start]);
+
+  const phase: PlayerPhase = load.key === requestKey ? load.status : "loading";
+  const loadError = load.key === requestKey ? load.error : null;
 
   useEffect(() => {
-    if (state.status !== "playing") return;
-    const interval = setInterval(
-      () => dispatch({ type: "tick", seconds: 1 }),
-      1000,
-    );
+    return () => {
+      void api.stopPlayer().catch(() => undefined);
+    };
+  }, []);
+
+  const switchTo = useCallback(
+    (index: number) => {
+      if (!playlist) return;
+      setItemIndex(index);
+      void start(playlist, index);
+    },
+    [playlist, start],
+  );
+
+  const send = useCallback((action: string, value?: number) => {
+    api.playerCommand(action, value).then(setBackend, (problem: unknown) => {
+      console.error(`Player command "${action}" failed`, problem);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!backend?.hasMedia) return;
+    if (backend.status === "ended" || backend.status === "error") return;
+    const interval = setInterval(() => {
+      api.getPlayerState().then(setBackend, () => undefined);
+    }, 500);
     return () => clearInterval(interval);
-  }, [state.status]);
+  }, [backend?.hasMedia, backend?.status]);
 
   const clearHideTimeout = useCallback(() => {
     if (hideTimeoutRef.current !== null) {
@@ -432,93 +298,157 @@ export function usePlayer(mediaId: string): PlayerController {
 
   const scheduleHide = useCallback(() => {
     clearHideTimeout();
-    hideTimeoutRef.current = setTimeout(
-      () => dispatch({ type: "hide-dock" }),
-      DOCK_HIDE_MS,
-    );
+    hideTimeoutRef.current = setTimeout(() => {
+      setDockVisible(false);
+    }, DOCK_HIDE_MS);
   }, [clearHideTimeout]);
 
+  const status = backend ? mapStatus(backend.status) : "buffering";
+
   useEffect(() => {
-    if (state.status === "playing" && !state.helpOpen) {
+    if (status === "playing" && !helpOpen) {
       scheduleHide();
     } else {
       clearHideTimeout();
     }
     return clearHideTimeout;
-  }, [state.status, state.helpOpen, scheduleHide, clearHideTimeout]);
+  }, [status, helpOpen, scheduleHide, clearHideTimeout]);
 
-  const notifyActivity = useCallback(() => {
-    dispatch({ type: "show-dock" });
-    scheduleHide();
-  }, [scheduleHide]);
+  useEffect(() => {
+    const element = stageRef.current;
+    if (!element) return;
+    const update = () => {
+      const bounds = measureBounds();
+      if (bounds && bounds.width > 0 && bounds.height > 0) {
+        void api.setPlayerBounds(bounds).catch(() => undefined);
+      }
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [measureBounds, phase]);
 
-  const reload = useCallback(() => setReloadToken((token) => token + 1), []);
+  const commands = useMemo<PlayerCommands>(() => {
+    const currentIndex = itemIndex;
 
-  const commands = useMemo<PlayerCommands>(
-    () => ({
-      togglePlay: () => dispatch({ type: "toggle-play" }),
-      play: () => dispatch({ type: "play" }),
-      pause: () => dispatch({ type: "pause" }),
-      seekTo: (seconds) => dispatch({ type: "seek-to", seconds }),
-      seekBy: (delta) => dispatch({ type: "seek-by", delta }),
-      setVolume: (volume) => dispatch({ type: "set-volume", volume }),
-      adjustVolume: (delta) => dispatch({ type: "adjust-volume", delta }),
-      toggleMute: () => dispatch({ type: "toggle-mute" }),
-      setRate: (rate) => dispatch({ type: "set-rate", rate }),
-      adjustRate: (delta) => dispatch({ type: "adjust-rate", delta }),
-      selectAudioTrack: (trackId) =>
-        dispatch({ type: "select-audio", trackId }),
-      selectSubtitleTrack: (trackId) =>
-        dispatch({ type: "select-subtitle", trackId }),
-      cycleAudioTrack: () => dispatch({ type: "cycle-audio" }),
-      cycleSubtitleTrack: () => dispatch({ type: "cycle-subtitle" }),
-      toggleSubtitles: () => dispatch({ type: "toggle-subtitles" }),
-      next: () => dispatch({ type: "next" }),
-      previous: () => dispatch({ type: "previous" }),
-      nextSeason: () => dispatch({ type: "next-season" }),
-      previousSeason: () => dispatch({ type: "previous-season" }),
-      setFullscreen: (fullscreen) =>
-        dispatch({ type: "set-fullscreen", fullscreen }),
-      setHelpOpen: (open) => dispatch({ type: "set-help", open }),
-      notifyActivity,
-    }),
-    [notifyActivity],
-  );
+    return {
+      togglePlay: () => send("toggle"),
+      play: () => send("play"),
+      pause: () => send("pause"),
+      seekTo: (seconds) => send("seek", seconds),
+      seekBy: (delta) => send("seekBy", delta),
+      setVolume: (volume) => send("setVolume", volume),
+      adjustVolume: (delta) => send("adjustVolume", delta),
+      toggleMute: () => send("toggleMute"),
+      setRate: (rate) => send("setRate", rate),
+      adjustRate: (delta) => {
+        const current = backend?.rate ?? 1;
+        send("setRate", clamp(current + delta, MIN_RATE, MAX_RATE));
+      },
+      selectAudioTrack: (trackId) => send("selectAudioTrack", trackId),
+      selectSubtitleTrack: (trackId) => send("selectSubtitleTrack", trackId),
+      cycleAudioTrack: () => {
+        const tracks = backend?.audioTracks ?? [];
+        if (tracks.length === 0) return;
+        const currentTrack = backend?.audioTrackId ?? tracks[0].id;
+        const index = tracks.findIndex((track) => track.id === currentTrack);
+        send("selectAudioTrack", tracks[(index + 1) % tracks.length].id);
+      },
+      cycleSubtitleTrack: () => {
+        const tracks = backend?.subtitleTracks ?? [];
+        const ids = [SUBTITLE_OFF, ...tracks.map((track) => track.id)];
+        const currentTrack = backend?.subtitleTrackId ?? SUBTITLE_OFF;
+        const index = ids.indexOf(currentTrack);
+        send("selectSubtitleTrack", ids[(index + 1) % ids.length]);
+      },
+      toggleSubtitles: () => {
+        const currentTrack = backend?.subtitleTrackId ?? SUBTITLE_OFF;
+        if (currentTrack !== SUBTITLE_OFF) {
+          send("selectSubtitleTrack", SUBTITLE_OFF);
+          return;
+        }
+        const first = backend?.subtitleTracks.find((track) => track.id >= 0);
+        send("selectSubtitleTrack", first?.id ?? SUBTITLE_OFF);
+      },
+      next: () => {
+        if (!playlist) return;
+        switchTo(stepIndex(playlist, currentIndex, 1));
+      },
+      previous: () => {
+        if (!playlist) return;
+        if ((backend?.positionSeconds ?? 0) > 5) {
+          send("seek", 0);
+          return;
+        }
+        switchTo(stepIndex(playlist, currentIndex, -1));
+      },
+      nextSeason: () => {
+        if (!playlist) return;
+        const current = playlist.items[currentIndex];
+        if (!current) return;
+        const seasonIndex = seasonIndexOfItem(playlist, current.id);
+        if (seasonIndex < 0 || seasonIndex >= playlist.seasons.length - 1)
+          return;
+        const target = firstPlayableInSeason(playlist, seasonIndex + 1);
+        if (target >= 0) switchTo(target);
+      },
+      previousSeason: () => {
+        if (!playlist) return;
+        const current = playlist.items[currentIndex];
+        if (!current) return;
+        const seasonIndex = seasonIndexOfItem(playlist, current.id);
+        if (seasonIndex <= 0) return;
+        const target = firstPlayableInSeason(playlist, seasonIndex - 1);
+        if (target >= 0) switchTo(target);
+      },
+      setFullscreen,
+      setHelpOpen: (open) => {
+        setHelpOpen(open);
+        if (open) setDockVisible(true);
+      },
+      notifyActivity: () => {
+        setDockVisible(true);
+        scheduleHide();
+      },
+    };
+  }, [backend, itemIndex, playlist, scheduleHide, send, switchTo]);
 
-  const current = state.playlist?.items[state.itemIndex] ?? null;
-  const durationSeconds = current?.durationSeconds ?? 0;
-  const currentLoad =
-    load.key === requestKey
-      ? load
-      : { key: requestKey, status: "loading" as PlayerPhase, error: null };
+  const current = playlist?.items[itemIndex] ?? null;
+
+  const state: PlayerState = {
+    status,
+    positionSeconds: backend?.positionSeconds ?? 0,
+    durationSeconds: backend?.durationSeconds ?? current?.durationSeconds ?? 0,
+    progress: backend?.progress ?? 0,
+    volume: backend?.volume ?? preferredVolume,
+    muted: backend?.muted ?? false,
+    rate: backend?.rate ?? 1,
+    audioTrackId: backend?.audioTrackId ?? -1,
+    subtitleTrackId: backend?.subtitleTrackId ?? SUBTITLE_OFF,
+    audioTracks: backend?.audioTracks ?? [],
+    subtitleTracks: backend?.subtitleTracks ?? [],
+    fullscreen,
+    dockVisible,
+    helpOpen,
+    hasNext: playlist ? stepIndex(playlist, itemIndex, 1) !== itemIndex : false,
+    hasPrevious: playlist
+      ? stepIndex(playlist, itemIndex, -1) !== itemIndex
+      : false,
+  };
 
   return {
-    status: currentLoad.status,
-    error: currentLoad.error,
-    reload,
-    playlist: state.playlist,
+    status: phase,
+    error: loadError ?? playbackError,
+    reload: () => setReloadToken((token) => token + 1),
+    playlist,
     current,
-    state: {
-      status: state.status,
-      positionSeconds: state.positionSeconds,
-      durationSeconds,
-      progress:
-        durationSeconds > 0
-          ? clamp(state.positionSeconds / durationSeconds, 0, 1)
-          : 0,
-      volume: state.volume,
-      muted: state.muted,
-      rate: state.rate,
-      audioTrackId: state.audioTrackId,
-      subtitleTrackId: state.subtitleTrackId,
-      fullscreen: state.fullscreen,
-      dockVisible: state.dockVisible,
-      helpOpen: state.helpOpen,
-      hasNext: state.playlist
-        ? state.itemIndex < state.playlist.items.length - 1
-        : false,
-      hasPrevious: state.itemIndex > 0,
-    },
+    state,
     commands,
+    stageRef,
   };
 }

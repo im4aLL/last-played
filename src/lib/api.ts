@@ -111,3 +111,71 @@ export function applyScanMatches(
 ): Promise<AppliedScan> {
   return invoke<AppliedScan>("apply_scan_matches", { mediaId, matches });
 }
+
+export type PlayerTrack = {
+  id: number;
+  label: string;
+};
+
+export type PlayerStatus =
+  | "idle"
+  | "opening"
+  | "buffering"
+  | "playing"
+  | "paused"
+  | "stopped"
+  | "ended"
+  | "error";
+
+export type PlayerState = {
+  status: PlayerStatus;
+  positionSeconds: number;
+  durationSeconds: number;
+  progress: number;
+  volume: number;
+  muted: boolean;
+  rate: number;
+  audioTrackId: number;
+  subtitleTrackId: number;
+  audioTracks: PlayerTrack[];
+  subtitleTracks: PlayerTrack[];
+  hasVideo: boolean;
+  hasMedia: boolean;
+  mediaPath: string | null;
+};
+
+export type SurfaceBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export function playVideo(
+  path: string,
+  startSeconds: number | null,
+  bounds: SurfaceBounds | null,
+): Promise<PlayerState> {
+  return invoke<PlayerState>("play_video", { path, startSeconds, bounds });
+}
+
+export function playerCommand(
+  action: string,
+  value?: number,
+): Promise<PlayerState> {
+  return invoke<PlayerState>("player_command", {
+    command: { action, value: value ?? null },
+  });
+}
+
+export function getPlayerState(): Promise<PlayerState> {
+  return invoke<PlayerState>("get_player_state");
+}
+
+export function setPlayerBounds(bounds: SurfaceBounds): Promise<void> {
+  return invoke<void>("set_player_bounds", { bounds });
+}
+
+export function stopPlayer(): Promise<void> {
+  return invoke<void>("stop_player");
+}

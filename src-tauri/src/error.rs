@@ -12,6 +12,8 @@ pub enum AppError {
     Metadata(String),
     #[error("tmdb error: {0}")]
     Tmdb(String),
+    #[error("player error: {0}")]
+    Player(String),
     #[error("not found: {0}")]
     NotFound(String),
     #[error(transparent)]

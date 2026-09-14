@@ -62,15 +62,25 @@ export default function PlayerStage({
     navigate(-1);
   }, [exitFullscreen, navigate]);
 
+  // `commands` changes on every state poll, so these mount-only effects keep
+  // the latest callback in a ref instead of re-running and fighting each other.
+  const exitFullscreenRef = useRef(exitFullscreen);
   useEffect(() => {
+    exitFullscreenRef.current = exitFullscreen;
+  }, [exitFullscreen]);
+
+  const enteredFullscreenRef = useRef(false);
+  useEffect(() => {
+    if (enteredFullscreenRef.current) return;
+    enteredFullscreenRef.current = true;
     void enterFullscreen();
   }, [enterFullscreen]);
 
   useEffect(() => {
     return () => {
-      void exitFullscreen();
+      void exitFullscreenRef.current();
     };
-  }, [exitFullscreen]);
+  }, []);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -202,7 +212,7 @@ export default function PlayerStage({
     <div
       ref={containerRef}
       className={cn(
-        "relative h-svh min-h-0 overflow-hidden bg-black text-white",
+        "flex h-svh min-h-0 flex-col overflow-hidden bg-black text-white",
         state.dockVisible ? "cursor-auto" : "cursor-none",
         state.fullscreen && "fixed inset-0 z-50",
       )}
@@ -212,15 +222,15 @@ export default function PlayerStage({
       <VideoSurface
         item={current}
         status={state.status}
-        rate={state.rate}
-        muted={state.muted}
-        onTogglePlay={commands.togglePlay}
+        stageRef={controller.stageRef}
       />
-      <ControlDock
-        controller={controller}
-        onToggleFullscreen={toggleFullscreen}
-        onClose={close}
-      />
+      {state.dockVisible && (
+        <ControlDock
+          controller={controller}
+          onToggleFullscreen={toggleFullscreen}
+          onClose={close}
+        />
+      )}
       <KeyboardHelp open={state.helpOpen} onOpenChange={commands.setHelpOpen} />
     </div>
   );
