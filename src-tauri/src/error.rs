@@ -8,6 +8,12 @@ pub enum AppError {
     Config(String),
     #[error("database error: {0}")]
     Database(String),
+    #[error("metadata error: {0}")]
+    Metadata(String),
+    #[error("tmdb error: {0}")]
+    Tmdb(String),
+    #[error("not found: {0}")]
+    NotFound(String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]

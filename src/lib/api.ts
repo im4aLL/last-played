@@ -5,6 +5,12 @@ import type {
   DatabaseHealth,
   DbMode,
 } from "./app-config";
+import type {
+  AddedMedia,
+  MediaPreview,
+  MediaType,
+  TmdbSearchResult,
+} from "./types";
 
 export function getConfig(): Promise<AppConfig> {
   return invoke<AppConfig>("get_config");
@@ -36,4 +42,26 @@ export function testDbConnection(): Promise<DatabaseHealth> {
 
 export function getDeviceId(): Promise<string> {
   return invoke<string>("get_device_id");
+}
+
+export function searchTmdb(query: string): Promise<TmdbSearchResult[]> {
+  return invoke<TmdbSearchResult[]>("search_tmdb", { query });
+}
+
+export function previewTmdbMedia(
+  mediaType: MediaType,
+  tmdbId: number,
+): Promise<MediaPreview> {
+  return invoke<MediaPreview>("preview_tmdb_media", { mediaType, tmdbId });
+}
+
+export function addMediaFromTmdb(
+  mediaType: MediaType,
+  tmdbId: number,
+): Promise<AddedMedia> {
+  return invoke<AddedMedia>("add_media_from_tmdb", { mediaType, tmdbId });
+}
+
+export function refreshMetadata(mediaId: string): Promise<AddedMedia> {
+  return invoke<AddedMedia>("refresh_metadata", { mediaId });
 }

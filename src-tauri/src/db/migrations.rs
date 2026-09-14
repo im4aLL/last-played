@@ -8,7 +8,55 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-pub const MIGRATIONS: &[Migration] = &[];
+const CREATE_MEDIA_TABLES: &str = "
+CREATE TABLE media_item (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL CHECK (type IN ('movie', 'tv')),
+    tmdb_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    original_title TEXT,
+    overview TEXT,
+    poster_path TEXT,
+    backdrop_path TEXT,
+    release_date TEXT,
+    first_air_date TEXT,
+    runtime INTEGER,
+    status TEXT,
+    added_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (type, tmdb_id)
+);
+
+CREATE TABLE season (
+    id TEXT PRIMARY KEY,
+    media_item_id TEXT NOT NULL REFERENCES media_item(id) ON DELETE CASCADE,
+    season_number INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    overview TEXT,
+    poster_path TEXT,
+    air_date TEXT,
+    UNIQUE (media_item_id, season_number)
+);
+
+CREATE TABLE episode (
+    id TEXT PRIMARY KEY,
+    season_id TEXT NOT NULL REFERENCES season(id) ON DELETE CASCADE,
+    media_item_id TEXT NOT NULL REFERENCES media_item(id) ON DELETE CASCADE,
+    episode_number INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    overview TEXT,
+    still_path TEXT,
+    air_date TEXT,
+    runtime INTEGER,
+    UNIQUE (season_id, episode_number)
+);
+";
+
+pub const MIGRATIONS: &[Migration] = &[Migration {
+    version: 1,
+    name: "create_media_tables",
+    sql: CREATE_MEDIA_TABLES,
+}];
 
 const CREATE_MIGRATIONS_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY,

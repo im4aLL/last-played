@@ -1,4 +1,10 @@
-import { Clapperboard, Film, Settings, type LucideIcon } from "lucide-react";
+import {
+  Clapperboard,
+  Film,
+  PlusCircle,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -29,11 +35,13 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Library", icon: Film, end: true },
+  { to: "/add", label: "Add media", icon: PlusCircle },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 function sectionTitle(pathname: string) {
   if (pathname.startsWith("/settings")) return "Settings";
+  if (pathname.startsWith("/add")) return "Add media";
   if (pathname.startsWith("/media")) return "Media";
   if (pathname.startsWith("/player")) return "Player";
   return "Library";

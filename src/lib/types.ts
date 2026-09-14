@@ -50,6 +50,60 @@ export type MediaDetail = {
 
 export type EpisodeWatchState = "unwatched" | "in-progress" | "watched";
 
+export type TmdbSearchResult = {
+  tmdbId: number;
+  mediaType: MediaType;
+  title: string;
+  year: number | null;
+  overview: string | null;
+  posterUrl: string | null;
+};
+
+export type EpisodePreview = {
+  episodeNumber: number;
+  name: string;
+  overview: string | null;
+  stillUrl: string | null;
+  airDate: string | null;
+  runtime: number | null;
+};
+
+export type SeasonPreview = {
+  seasonNumber: number;
+  name: string;
+  overview: string | null;
+  posterUrl: string | null;
+  airDate: string | null;
+  episodeCount: number;
+  episodes: EpisodePreview[];
+};
+
+export type MediaPreview = {
+  tmdbId: number;
+  mediaType: MediaType;
+  title: string;
+  year: number | null;
+  overview: string | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  releaseDate: string | null;
+  runtime: number | null;
+  seasonCount: number;
+  episodeCount: number;
+  seasons: SeasonPreview[];
+};
+
+export type AddedMedia = {
+  id: string;
+  mediaType: MediaType;
+  title: string;
+  year: number | null;
+  posterUrl: string | null;
+  seasonCount: number;
+  episodeCount: number;
+  refreshed: boolean;
+};
+
 export function progressRatio(progress: WatchProgress | null): number | null {
   if (!progress || progress.durationSeconds <= 0) return null;
   return Math.min(

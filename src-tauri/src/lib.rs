@@ -1,7 +1,9 @@
 mod commands;
 mod config;
 mod db;
+mod domain;
 mod error;
+mod services;
 mod state;
 
 use tauri::Manager;
@@ -30,6 +32,10 @@ pub fn run() {
             commands::config::set_db_mode,
             commands::db::get_health,
             commands::db::test_db_connection,
+            commands::media::search_tmdb,
+            commands::media::preview_tmdb_media,
+            commands::media::add_media_from_tmdb,
+            commands::media::refresh_metadata,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

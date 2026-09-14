@@ -5,6 +5,7 @@ use turso::{Builder, Connection, Database as TursoDatabase};
 use crate::error::{AppError, Result};
 
 pub mod migrations;
+pub mod repositories;
 
 pub const DB_FILE_NAME: &str = "library.db";
 
