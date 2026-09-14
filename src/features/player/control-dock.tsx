@@ -264,7 +264,7 @@ export default function ControlDock({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <div className="flex items-center gap-0.5">
             <DockButton
               label="Previous episode"
@@ -295,7 +295,7 @@ export default function ControlDock({
             />
           </div>
 
-          <div className="min-w-0 flex-1 px-2">
+          <div className="order-first min-w-0 basis-full px-1 sm:order-none sm:flex-1 sm:basis-auto sm:px-2">
             <p className="truncate text-sm font-medium text-white">
               {current.subtitle ?? current.title}
             </p>

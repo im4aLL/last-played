@@ -1,6 +1,6 @@
 # T016 - Dashboard and library polish
 
-- Status: Todo
+- Status: Done
 - Phase: 2 - Functionality
 - Depends on: T009, T011, T013
 - Plan refs: PLAN.md (Frontend structure), M9

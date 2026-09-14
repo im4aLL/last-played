@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert, Tv } from "lucide-react";
 import { useParams } from "react-router-dom";
 import EmptyState from "@/components/app/empty-state";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,16 @@ export default function MediaPage() {
       {detail.type === "tv" && detail.seasons.length > 0 && (
         <div className="mt-8 px-6 md:px-8">
           <SeasonSection mediaId={detail.id} seasons={detail.seasons} />
+        </div>
+      )}
+
+      {detail.type === "tv" && detail.seasons.length === 0 && (
+        <div className="mt-8 px-6 md:px-8">
+          <EmptyState
+            icon={Tv}
+            title="No seasons available"
+            description="TMDB did not return any seasons for this show."
+          />
         </div>
       )}
     </div>
