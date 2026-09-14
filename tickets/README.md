@@ -20,7 +20,7 @@ Each ticket is a standalone file named `TNNN-short-title.md` and carries its own
 | T002 | App shell: layout, navigation, theme | 1 - Frontend | T001 | Done |
 | T003 | Library dashboard (mock) | 1 - Frontend | T002 | Done |
 | T004 | Media detail: seasons and episodes (mock) | 1 - Frontend | T002 | Done |
-| T005 | First-run setup and Settings (mock) | 1 - Frontend | T002 | Todo |
+| T005 | First-run setup and Settings (mock) | 1 - Frontend | T002 | Done |
 | T006 | Player UI: surface, dock, keybindings (mock) | 1 - Frontend | T002 | Todo |
 | T007 | Local database and Local mode | 2 - Functionality | T001, T005 | Todo |
 | T008 | TMDB client and add media | 2 - Functionality | T007 | Todo |

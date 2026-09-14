@@ -1,5 +1,5 @@
 import { Clapperboard, Film, Settings, type LucideIcon } from "lucide-react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +18,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useSystemTheme } from "@/hooks/use-system-theme";
+import { useAppConfig } from "@/lib/app-config";
 
 type NavItem = {
   to: string;
@@ -60,6 +61,11 @@ function SidebarNavItem({ item }: { item: NavItem }) {
 export default function AppShell() {
   useSystemTheme();
   const { pathname } = useLocation();
+  const dbMode = useAppConfig((state) => state.dbMode);
+
+  if (dbMode === null) {
+    return <Navigate to="/setup" replace />;
+  }
 
   return (
     <TooltipProvider>

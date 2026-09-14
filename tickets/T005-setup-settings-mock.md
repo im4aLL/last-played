@@ -1,6 +1,6 @@
 # T005 - First-run setup and Settings (mock)
 
-- Status: Todo
+- Status: Done
 - Phase: 1 - Frontend
 - Depends on: T002
 - Plan refs: PLAN.md (Local config and secrets), M1

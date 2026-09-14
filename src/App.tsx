@@ -5,8 +5,13 @@ import MediaPage from "@/features/media/media-page";
 import NotFoundPage from "@/features/not-found/not-found-page";
 import PlayerPage from "@/features/player/player-page";
 import SettingsPage from "@/features/settings/settings-page";
+import SetupPage from "@/features/setup/setup-page";
 
 const router = createBrowserRouter([
+  {
+    path: "/setup",
+    element: <SetupPage />,
+  },
   {
     path: "/",
     element: <AppShell />,
