@@ -1,6 +1,6 @@
 import {
-  Clapperboard,
   Film,
+  Info,
   PlusCircle,
   Settings,
   type LucideIcon,
@@ -16,6 +16,7 @@ import {
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import AppLogo from "@/components/app/app-logo";
 import SyncIndicator from "@/features/sync/sync-indicator";
 import ThemeToggle from "@/components/app/theme-toggle";
 import { useMedia } from "@/features/media/use-media";
@@ -48,9 +50,12 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+const FOOTER_ITEMS: NavItem[] = [{ to: "/about", label: "About", icon: Info }];
+
 function sectionTitle(pathname: string, mediaTitle: string | null) {
   if (pathname.startsWith("/settings")) return "Settings";
   if (pathname.startsWith("/add")) return "Add media";
+  if (pathname.startsWith("/about")) return "About";
   if (pathname.startsWith("/media")) return mediaTitle ?? "Media";
   if (pathname.startsWith("/player")) return "Player";
   return "Library";
@@ -95,7 +100,7 @@ export default function AppShell() {
                 <SidebarMenuButton size="lg" asChild>
                   <Link to="/">
                     <div className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                      <Clapperboard className="size-4" />
+                      <AppLogo />
                     </div>
                     <div className="grid flex-1 text-left text-sm leading-tight">
                       <span className="truncate font-heading font-semibold">
@@ -123,6 +128,14 @@ export default function AppShell() {
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
+
+          <SidebarFooter>
+            <SidebarMenu>
+              {FOOTER_ITEMS.map((item) => (
+                <SidebarNavItem key={item.to} item={item} />
+              ))}
+            </SidebarMenu>
+          </SidebarFooter>
 
           <SidebarRail />
         </Sidebar>

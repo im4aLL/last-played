@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import AppShell from "@/components/app/app-shell";
+import AboutPage from "@/features/about/about-page";
 import LibraryPage from "@/features/library/library-page";
 import AddMediaPage from "@/features/media/add-media-page";
 import MediaPage from "@/features/media/media-page";
@@ -30,6 +31,7 @@ const router = createBrowserRouter([
       { path: "add", element: <AddMediaPage /> },
       { path: "media/:id", element: <MediaPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "about", element: <AboutPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

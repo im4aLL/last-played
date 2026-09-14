@@ -2,6 +2,16 @@
   "name": "last-played",
   "private": true,
   "version": "0.1.0",
+  "description": "Track and resume your local movie and TV library.",
+  "author": "Hadi",
+  "homepage": "https://github.com/im4aLL/last-played#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/im4aLL/last-played.git"
+  },
+  "bugs": {
+    "url": "https://github.com/im4aLL/last-played/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

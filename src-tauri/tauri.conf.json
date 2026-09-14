@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "last-played",
+  "productName": "Last Played",
   "version": "0.1.0",
   "identifier": "com.hadi.last-played",
   "build": {
@@ -14,7 +14,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "last-played",
+        "title": "Last Played",
         "width": 800,
         "height": 600,
         "maximized": true,
