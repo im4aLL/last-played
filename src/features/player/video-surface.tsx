@@ -19,7 +19,7 @@ export default function VideoSurface({
     <div
       ref={stageRef}
       onClick={onToggle}
-      className="absolute inset-0 cursor-pointer overflow-hidden bg-transparent"
+      className="absolute inset-0 overflow-hidden bg-transparent"
     >
       {starting && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black text-center">

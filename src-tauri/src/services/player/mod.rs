@@ -141,6 +141,8 @@ pub struct PlayerService {
     vlc: Vlc,
     media_player: LibvlcMediaPlayer,
     current_path: Option<String>,
+    /// Held while playback is running so the display and system stay awake.
+    wake: Option<keepawake::KeepAwake>,
 }
 
 unsafe impl Send for PlayerService {}
@@ -164,7 +166,32 @@ impl PlayerService {
             vlc,
             media_player,
             current_path: None,
+            wake: None,
         })
+    }
+
+    /// Keeps the display and system awake while a video is actually playing.
+    /// Acquiring is idempotent; the assertion is released as soon as playback
+    /// pauses, ends, or stops.
+    fn set_display_awake(&mut self, awake: bool) {
+        if !awake {
+            self.wake = None;
+            return;
+        }
+        if self.wake.is_some() {
+            return;
+        }
+        match keepawake::Builder::default()
+            .display(true)
+            .idle(true)
+            .reason("Video playback")
+            .app_name("Last Played")
+            .app_reverse_domain("app.lastplayed")
+            .create()
+        {
+            Ok(wake) => self.wake = Some(wake),
+            Err(error) => eprintln!("failed to keep the display awake: {error}"),
+        }
     }
 
     #[cfg(target_os = "macos")]
@@ -249,6 +276,7 @@ impl PlayerService {
         unsafe {
             (self.vlc.fns.libvlc_media_player_stop)(self.media_player);
         }
+        self.set_display_awake(false);
     }
 
     pub fn command(&mut self, command: PlayerCommand) -> Result<()> {
@@ -319,10 +347,11 @@ impl PlayerService {
 
     pub fn state(&mut self) -> PlayerState {
         if self.current_path.is_none() {
+            self.set_display_awake(false);
             return PlayerState::empty();
         }
 
-        unsafe {
+        let state = unsafe {
             let f = &self.vlc.fns;
             let mp = self.media_player;
 
@@ -360,7 +389,10 @@ impl PlayerService {
                 has_media: true,
                 media_path: self.current_path.clone(),
             }
-        }
+        };
+
+        self.set_display_awake(state.status == "playing");
+        state
     }
 }
 
