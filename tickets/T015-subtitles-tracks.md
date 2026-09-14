@@ -1,6 +1,6 @@
 # T015 - Subtitles, audio tracks, preferences
 
-- Status: Todo
+- Status: Done
 - Phase: 2 - Functionality
 - Depends on: T012, T013
 - Plan refs: PLAN.md (Player design), M10

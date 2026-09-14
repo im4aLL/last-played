@@ -5,7 +5,7 @@ use tauri::{State, WebviewWindow};
 
 use crate::error::{AppError, Result};
 use crate::services::player::{
-    NativeSurface, PlayerCommand, PlayerService, PlayerState, SurfaceBounds,
+    NativeSurface, PlaybackPreferences, PlayerCommand, PlayerService, PlayerState, SurfaceBounds,
 };
 use crate::state::AppState;
 
@@ -107,7 +107,13 @@ pub async fn play_video(
         .as_mut()
         .ok_or_else(|| AppError::Player("The player is not available.".to_string()))?;
     player.attach_surface(&surface);
-    player.play(&path, start_seconds)?;
+
+    let preferences = state.config().player;
+    let playback = PlaybackPreferences {
+        audio_language: Some(preferences.audio_language),
+        subtitle_language: Some(preferences.subtitle_language),
+    };
+    player.play(&path, start_seconds, &playback)?;
     Ok(player.state())
 }
 

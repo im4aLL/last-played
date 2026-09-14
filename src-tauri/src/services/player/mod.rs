@@ -13,6 +13,75 @@ use ffi::*;
 
 const SUBTITLE_DISABLED: i64 = -1;
 
+const SIDECAR_EXTENSIONS: [&str; 3] = ["srt", "ass", "ssa"];
+
+#[derive(Debug, Clone, Default)]
+pub struct PlaybackPreferences {
+    pub audio_language: Option<String>,
+    pub subtitle_language: Option<String>,
+}
+
+impl PlaybackPreferences {
+    fn media_options(&self) -> Vec<CString> {
+        let mut options = Vec::new();
+        if let Some(language) = normalize_language(self.audio_language.as_deref()) {
+            if let Ok(option) = CString::new(format!(":audio-language={language}")) {
+                options.push(option);
+            }
+        }
+        if let Some(language) = normalize_language(self.subtitle_language.as_deref()) {
+            if let Ok(option) = CString::new(format!(":sub-language={language}")) {
+                options.push(option);
+            }
+        }
+        options
+    }
+}
+
+fn normalize_language(language: Option<&str>) -> Option<String> {
+    let language = language?.trim();
+    if language.is_empty() || language.eq_ignore_ascii_case("off") {
+        None
+    } else {
+        Some(language.to_lowercase())
+    }
+}
+
+fn sidecar_subtitles(video: &Path) -> Vec<PathBuf> {
+    let (Some(parent), Some(stem)) = (video.parent(), video.file_stem()) else {
+        return Vec::new();
+    };
+    let stem = stem.to_string_lossy().to_lowercase();
+    let Ok(entries) = std::fs::read_dir(parent) else {
+        return Vec::new();
+    };
+
+    let mut sidecars: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .filter(|path| {
+            path.extension().is_some_and(|extension| {
+                SIDECAR_EXTENSIONS
+                    .iter()
+                    .any(|candidate| extension.eq_ignore_ascii_case(candidate))
+            })
+        })
+        .filter(|path| {
+            path.file_stem().is_some_and(|name| {
+                let name = name.to_string_lossy().to_lowercase();
+                name == stem || name.starts_with(&format!("{stem}."))
+            })
+        })
+        .collect();
+    sidecars.sort();
+    sidecars
+}
+
+fn sub_file_option(path: &Path) -> Option<CString> {
+    CString::new(format!(":sub-file={}", path.to_string_lossy())).ok()
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerTrack {
@@ -125,7 +194,12 @@ impl PlayerService {
         }
     }
 
-    pub fn play(&mut self, path: &str, start_seconds: Option<f64>) -> Result<()> {
+    pub fn play(
+        &mut self,
+        path: &str,
+        start_seconds: Option<f64>,
+        preferences: &PlaybackPreferences,
+    ) -> Result<()> {
         let c_path = CString::new(path)
             .map_err(|_| AppError::Player("the media path contains a null byte.".to_string()))?;
 
@@ -141,6 +215,16 @@ impl PlayerService {
                 if let Ok(option) = CString::new(format!(":start-time={seconds}")) {
                     (self.vlc.fns.libvlc_media_add_option)(media, option.as_ptr());
                 }
+            }
+
+            for sidecar in sidecar_subtitles(Path::new(path)) {
+                if let Some(option) = sub_file_option(&sidecar) {
+                    (self.vlc.fns.libvlc_media_add_option)(media, option.as_ptr());
+                }
+            }
+
+            for option in preferences.media_options() {
+                (self.vlc.fns.libvlc_media_add_option)(media, option.as_ptr());
             }
 
             (self.vlc.fns.libvlc_media_player_set_media)(self.media_player, media);
