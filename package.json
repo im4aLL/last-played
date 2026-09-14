@@ -1,7 +1,7 @@
 {
   "name": "last-played",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Track and resume your local movie and TV library.",
   "author": "Hadi",
   "homepage": "https://github.com/im4aLL/last-played#readme",
