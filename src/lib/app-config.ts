@@ -59,7 +59,47 @@ export const SUBTITLE_FONT_OPTIONS = [
   { value: "custom", label: "Custom..." },
 ];
 
-export const LANGUAGE_OPTIONS = [  { value: "en", label: "English" },
+// Relative subtitle sizes matching libVLC `freetype-rel-fontsize`.
+// Smaller values render larger. Relative sizes scale with the video surface
+// so windowed and fullscreen keep the same proportion, unlike absolute px.
+export const SUBTITLE_SIZE_OPTIONS = [
+  { value: 0, label: "Auto" },
+  { value: 32, label: "Smallest" },
+  { value: 26, label: "Tiny" },
+  { value: 20, label: "Smaller" },
+  { value: 18, label: "Small" },
+  { value: 16, label: "Normal" },
+  { value: 12, label: "Large" },
+  { value: 6, label: "Larger" },
+];
+
+// Explicit sizes ordered from visually smallest to largest (Auto excluded).
+// Larger `freetype-rel-fontsize` values render smaller text.
+const SUBTITLE_SIZE_VISUAL_ASC = [32, 26, 20, 18, 16, 12, 6];
+
+export function subtitleSizeLabel(value: number): string {
+  return (
+    SUBTITLE_SIZE_OPTIONS.find((option) => option.value === value)?.label ??
+    "Auto"
+  );
+}
+
+// Steps through explicit sizes. Auto is treated as Normal since the
+// renderer's default is roughly medium. Never lands on Auto; clamp at ends.
+export function stepSubtitleSize(current: number, direction: 1 | -1): number {
+  const anchor = current === 0 ? 16 : current;
+  let index = SUBTITLE_SIZE_VISUAL_ASC.indexOf(anchor);
+  if (index < 0) index = SUBTITLE_SIZE_VISUAL_ASC.indexOf(16);
+  const next = index + (direction === 1 ? 1 : -1);
+  const clamped = Math.min(
+    SUBTITLE_SIZE_VISUAL_ASC.length - 1,
+    Math.max(0, next),
+  );
+  return SUBTITLE_SIZE_VISUAL_ASC[clamped] ?? anchor;
+}
+
+export const LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
   { value: "es", label: "Spanish" },
   { value: "fr", label: "French" },
   { value: "de", label: "German" },

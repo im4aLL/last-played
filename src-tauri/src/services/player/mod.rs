@@ -165,10 +165,17 @@ impl PlayerService {
         // Subtitle text options have no per-media effect in libVLC, so they
         // have to be applied as instance options when the player is created.
         // A zero size keeps the renderer's automatic size, and an empty
-        // family keeps its default font.
+        // family keeps its default font. Relative size scales with the video
+        // surface, so windowed and fullscreen keep the same proportion.
+        // Absolute `freetype-fontsize` is intentionally left at 0 because it
+        // would override the relative size with fixed pixels.
+        let subtitle_size = crate::config::normalize_subtitle_size(subtitle_size);
         let subtitle_font: String =
             subtitle_font.trim().chars().take(MAX_FONT_FAMILY_LEN).collect();
-        let mut options = vec![format!("--freetype-fontsize={subtitle_size}")];
+        let mut options = vec![
+            "--freetype-fontsize=0".to_string(),
+            format!("--freetype-rel-fontsize={subtitle_size}"),
+        ];
         if !subtitle_font.is_empty() {
             options.push(format!("--freetype-font={subtitle_font}"));
         }
@@ -201,7 +208,7 @@ impl PlayerService {
         })
     }
 
-    /// The subtitle size in pixels this instance was created with, or zero
+    /// The relative subtitle size this instance was created with, or zero
     /// for the renderer's automatic size. Changing it requires rebuilding
     /// the player.
     pub fn subtitle_size(&self) -> u16 {

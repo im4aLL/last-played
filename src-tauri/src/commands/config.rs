@@ -30,13 +30,15 @@ pub fn get_device_id(state: State<'_, AppState>) -> String {
 #[tauri::command]
 pub async fn save_config(state: State<'_, AppState>, input: ConfigInput) -> Result<AppConfig> {
     let previous = state.config();
+    let mut player = input.player;
+    player.subtitle_size = crate::config::normalize_subtitle_size(player.subtitle_size);
     let updated = state.update_config(|config| {
         config.device_name = input.device_name;
         config.db_mode = input.db_mode;
         config.tmdb_api_key = input.tmdb_api_key;
         config.turso_url = input.turso_url;
         config.turso_auth_token = input.turso_auth_token;
-        config.player = input.player;
+        config.player = player;
     })?;
 
     let credentials_changed = previous.turso_url != updated.turso_url

@@ -224,6 +224,10 @@ export function playerCommand(
   });
 }
 
+export function applySubtitleSize(size: number): Promise<PlayerState> {
+  return invoke<PlayerState>("apply_subtitle_size", { size });
+}
+
 export function getPlayerState(): Promise<PlayerState> {
   return invoke<PlayerState>("get_player_state");
 }

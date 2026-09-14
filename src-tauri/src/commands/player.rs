@@ -108,9 +108,13 @@ pub async fn play_video(
     let mut guard = state.player();
 
     // Subtitle text options are libVLC instance options, so changed values
-    // only take effect after the player is rebuilt for the next file.
+    // only take effect after the player is rebuilt: on the next file here,
+    // or immediately via apply_subtitle_size for shortcut presses.
+    // Normalize both sides so legacy absolute-pixel configs do not force a
+    // rebuild on every file.
+    let wanted_size = crate::config::normalize_subtitle_size(preferences.subtitle_size);
     let options_changed = guard.as_ref().is_some_and(|player| {
-        player.subtitle_size() != preferences.subtitle_size
+        player.subtitle_size() != wanted_size
             || player.subtitle_font() != preferences.subtitle_font.trim()
     });
     if guard.is_none() || options_changed {
@@ -147,6 +151,128 @@ pub async fn player_command(
         .ok_or_else(|| AppError::Player("The player is not running.".to_string()))?;
     player.command(command)?;
     Ok(player.state())
+}
+
+/// Rebuilds the player with a new relative subtitle size and resumes the
+/// current video in place, so size shortcuts apply live.
+///
+/// libVLC reads `freetype-rel-fontsize` as an instance option, which is why
+/// Settings notes it applies on the next video. For an explicit shortcut
+/// press we accept a brief restart instead: snapshot position, rate, volume,
+/// tracks, and pause state, recreate the instance with the new size, and
+/// restore everything. The size is also persisted to config immediately so a
+/// quick episode switch cannot revert to the stale value.
+#[tauri::command]
+pub async fn apply_subtitle_size(state: State<'_, AppState>, size: u16) -> Result<PlayerState> {
+    let size = crate::config::normalize_subtitle_size(size);
+    state.update_config(|config| {
+        config.player.subtitle_size = size;
+    })?;
+
+    let Some(surface) = *state.surface() else {
+        return Ok(PlayerState::empty());
+    };
+
+    // Snapshot while the old instance is still playing so polls keep seeing
+    // it until the swap.
+    let snapshot = {
+        let mut guard = state.player();
+        match guard.as_mut() {
+            Some(player) => player.state(),
+            None => return Ok(PlayerState::empty()),
+        }
+    };
+
+    let Some(path) = snapshot.media_path.clone() else {
+        return Ok(snapshot);
+    };
+
+    // Build the replacement before dropping the old instance so a failure
+    // leaves playback untouched.
+    let config = state.config();
+    let bundle_dir = state.bundled_vlc_dir();
+    let mut fresh = PlayerService::new(bundle_dir.as_deref(), size, &config.player.subtitle_font)?;
+    fresh.attach_surface(&surface);
+
+    let playback = PlaybackPreferences {
+        audio_language: Some(config.player.audio_language),
+        subtitle_language: Some(config.player.subtitle_language),
+    };
+    fresh.play(&path, Some(snapshot.position_seconds), &playback)?;
+
+    // A fresh instance does not inherit these; restore immediately.
+    let _ = fresh.command(PlayerCommand {
+        action: "setVolume".to_string(),
+        value: Some(snapshot.volume as f64),
+    });
+    let _ = fresh.command(PlayerCommand {
+        action: "setMuted".to_string(),
+        value: Some(if snapshot.muted { 1.0 } else { 0.0 }),
+    });
+    if snapshot.rate > 0.0 {
+        let _ = fresh.command(PlayerCommand {
+            action: "setRate".to_string(),
+            value: Some(snapshot.rate),
+        });
+    }
+    if snapshot.status == "paused" || snapshot.status == "ended" {
+        let _ = fresh.command(PlayerCommand {
+            action: "pause".to_string(),
+            value: None,
+        });
+    }
+
+    // Swap first so status polls see the new instance during the track wait.
+    *state.player() = Some(fresh);
+
+    // Track lists populate asynchronously after play(). Wait briefly so
+    // restoring the user's explicit track selection sticks instead of
+    // racing the parser. Files without a track kind skip their wait.
+    let wanted_audio = snapshot.audio_track_id;
+    let wanted_spu = snapshot.subtitle_track_id;
+    for _ in 0..10 {
+        let (audio_ready, spu_ready) = {
+            let mut guard = state.player();
+            match guard.as_mut() {
+                Some(player) => {
+                    let live = player.state();
+                    let audio_ready = live
+                        .audio_tracks
+                        .iter()
+                        .any(|track| track.id == wanted_audio)
+                        || !live.audio_tracks.is_empty();
+                    let spu_ready = wanted_spu == -1
+                        || live
+                            .subtitle_tracks
+                            .iter()
+                            .any(|track| track.id == wanted_spu)
+                        || !live.subtitle_tracks.is_empty();
+                    (audio_ready, spu_ready)
+                }
+                None => break,
+            }
+        };
+        if audio_ready && spu_ready {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    }
+
+    {
+        let mut guard = state.player();
+        if let Some(player) = guard.as_mut() {
+            let _ = player.command(PlayerCommand {
+                action: "selectAudioTrack".to_string(),
+                value: Some(wanted_audio as f64),
+            });
+            let _ = player.command(PlayerCommand {
+                action: "selectSubtitleTrack".to_string(),
+                value: Some(wanted_spu as f64),
+            });
+            return Ok(player.state());
+        }
+    }
+    Ok(PlayerState::empty())
 }
 
 #[tauri::command]

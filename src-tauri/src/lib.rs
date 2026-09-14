@@ -59,6 +59,7 @@ pub fn run() {
             commands::scan::apply_scan_matches,
             commands::player::play_video,
             commands::player::player_command,
+            commands::player::apply_subtitle_size,
             commands::player::get_player_state,
             commands::player::set_player_bounds,
             commands::player::set_player_visible,

@@ -7,7 +7,11 @@ import type {
   PlayerTrack,
   SurfaceBounds,
 } from "@/lib/api";
-import { useAppConfig } from "@/lib/app-config";
+import {
+  stepSubtitleSize,
+  subtitleSizeLabel,
+  useAppConfig,
+} from "@/lib/app-config";
 import { toError } from "@/lib/errors";
 import { focusWebview } from "@/features/player/fullscreen";
 import {
@@ -27,6 +31,9 @@ export const MAX_RATE = 3;
 export const DOCK_HIDE_MS = 3000;
 export const FEEDBACK_MS = 900;
 export const PROGRESS_SAVE_INTERVAL_MS = 5000;
+// Waits for further presses before rebuilding the player so rapid
+// subtitle-size steps apply once instead of restarting once per press.
+export const SUBTITLE_SIZE_APPLY_DELAY_MS = 600;
 
 const UNPLAYABLE_MESSAGE =
   "This file could not be played. It may be corrupt or use a format libVLC cannot decode.";
@@ -43,7 +50,8 @@ export type FeedbackKind =
   | "mute"
   | "unmute"
   | "rate"
-  | "subtitles";
+  | "subtitles"
+  | "subtitleSize";
 
 export type PlayerFeedback = {
   id: number;
@@ -87,6 +95,7 @@ export type PlayerCommands = {
   cycleAudioTrack: () => void;
   cycleSubtitleTrack: () => void;
   toggleSubtitles: () => void;
+  adjustSubtitleSize: (direction: 1 | -1) => void;
   next: () => void;
   previous: () => void;
   playItem: (itemId: string) => void;
@@ -203,6 +212,9 @@ export function usePlayer(
 
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const subtitleApplyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const feedbackIdRef = useRef(0);
 
   const currentRef = useRef<PlaybackItem | null>(null);
@@ -245,6 +257,9 @@ export function usePlayer(
     () => () => {
       if (feedbackTimeoutRef.current !== null) {
         clearTimeout(feedbackTimeoutRef.current);
+      }
+      if (subtitleApplyTimeoutRef.current !== null) {
+        clearTimeout(subtitleApplyTimeoutRef.current);
       }
     },
     [],
@@ -559,6 +574,27 @@ export function usePlayer(
         const first = backend?.subtitleTracks.find((track) => track.id >= 0);
         showFeedback("subtitles", first ? "Subtitles on" : "No subtitles");
         send("selectSubtitleTrack", first?.id ?? SUBTITLE_OFF);
+      },
+      adjustSubtitleSize: (direction) => {
+        // Step through explicit sizes and persist globally. The backend
+        // rebuilds the player with the new size, debounced so rapid presses
+        // restart playback once instead of once per press.
+        const current = useAppConfig.getState().player.subtitleSize;
+        const next = stepSubtitleSize(current, direction);
+        if (next !== current) {
+          useAppConfig.getState().setPlayerPreferences({ subtitleSize: next });
+        }
+        showFeedback("subtitleSize", `Subtitles: ${subtitleSizeLabel(next)}`);
+        if (subtitleApplyTimeoutRef.current !== null) {
+          clearTimeout(subtitleApplyTimeoutRef.current);
+        }
+        subtitleApplyTimeoutRef.current = setTimeout(() => {
+          subtitleApplyTimeoutRef.current = null;
+          const latest = useAppConfig.getState().player.subtitleSize;
+          api.applySubtitleSize(latest).then(setBackend, (problem: unknown) => {
+            console.error("Subtitle size apply failed", problem);
+          });
+        }, SUBTITLE_SIZE_APPLY_DELAY_MS);
       },
       next: () => {
         if (!playlist) return;

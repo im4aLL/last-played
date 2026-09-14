@@ -184,6 +184,14 @@ export default function PlayerStage({
         case "]":
           commands.adjustRate(RATE_STEP);
           break;
+        case "+":
+        case "=":
+          commands.adjustSubtitleSize(1);
+          break;
+        case "-":
+        case "_":
+          commands.adjustSubtitleSize(-1);
+          break;
         case "?":
           commands.setHelpOpen(!state.helpOpen);
           break;

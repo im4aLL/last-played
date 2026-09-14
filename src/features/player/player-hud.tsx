@@ -24,6 +24,7 @@ const FEEDBACK_ICONS: Record<FeedbackKind, LucideIcon> = {
   unmute: Volume2,
   rate: Gauge,
   subtitles: Captions,
+  subtitleSize: Captions,
 };
 
 export default function PlayerHud({

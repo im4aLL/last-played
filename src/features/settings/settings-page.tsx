@@ -23,9 +23,11 @@ import { testDbConnection } from "@/lib/api";
 import {
   LANGUAGE_OPTIONS,
   SUBTITLE_FONT_OPTIONS,
+  SUBTITLE_SIZE_OPTIONS,
   useAppConfig,
   type DbMode,
-} from "@/lib/app-config";import { errorMessage } from "@/lib/errors";
+} from "@/lib/app-config";
+import { errorMessage } from "@/lib/errors";
 
 function SectionCard({
   icon: Icon,
@@ -368,17 +370,35 @@ export default function SettingsPage() {
           </Select>
         </SettingField>
 
-        <SliderSetting
+        <SettingField
           id="subtitle-size"
           label="Subtitle font size"
-          description="Absolute subtitle size in pixels. Auto uses the renderer's default size. Applies when the next video starts."
-          value={player.subtitleSize}
-          min={0}
-          max={96}
-          step={2}
-          format={(value) => (value === 0 ? "Auto" : `${value}px`)}
-          onChange={(subtitleSize) => setPlayerPreferences({ subtitleSize })}
-        />
+          description="Relative subtitle size. Scales with the video so windowed and fullscreen match. Applies when the next video starts."
+        >
+          <Select
+            value={String(
+              SUBTITLE_SIZE_OPTIONS.some(
+                (option) => option.value === player.subtitleSize,
+              )
+                ? player.subtitleSize
+                : 0,
+            )}
+            onValueChange={(value) =>
+              setPlayerPreferences({ subtitleSize: Number(value) })
+            }
+          >
+            <SelectTrigger id="subtitle-size" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SUBTITLE_SIZE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={String(option.value)}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </SettingField>
 
         <SettingField
           id="subtitle-font"

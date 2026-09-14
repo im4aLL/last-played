@@ -15,14 +15,60 @@ pub enum DbMode {
     Remote,
 }
 
+/// Relative subtitle sizes matching libVLC's `freetype-rel-fontsize`.
+/// Smaller values render larger: 32 is Smallest, 26 Tiny, 20 Smaller,
+/// 18 Small, 16 Normal, 12 Large, 6 Larger. Zero keeps the renderer's
+/// automatic size. libVLC accepts any integer here, not just the presets;
+/// larger numbers keep shrinking the text.
+pub const SUBTITLE_SIZE_AUTO: u16 = 0;
+pub const SUBTITLE_SIZE_SMALLEST: u16 = 32;
+pub const SUBTITLE_SIZE_TINY: u16 = 26;
+pub const SUBTITLE_SIZE_SMALLER: u16 = 20;
+pub const SUBTITLE_SIZE_SMALL: u16 = 18;
+pub const SUBTITLE_SIZE_NORMAL: u16 = 16;
+pub const SUBTITLE_SIZE_LARGE: u16 = 12;
+pub const SUBTITLE_SIZE_LARGER: u16 = 6;
+
+/// All valid relative subtitle sizes, including auto.
+pub const SUBTITLE_SIZES: [u16; 8] = [
+    SUBTITLE_SIZE_AUTO,
+    SUBTITLE_SIZE_SMALLEST,
+    SUBTITLE_SIZE_TINY,
+    SUBTITLE_SIZE_SMALLER,
+    SUBTITLE_SIZE_SMALL,
+    SUBTITLE_SIZE_NORMAL,
+    SUBTITLE_SIZE_LARGE,
+    SUBTITLE_SIZE_LARGER,
+];
+
+/// Normalizes a stored subtitle size to a valid relative value.
+///
+/// Older configs stored absolute pixels (`freetype-fontsize`). Those are
+/// mapped to the closest relative bucket so existing preferences keep
+/// roughly the same intent instead of resetting.
+pub fn normalize_subtitle_size(value: u16) -> u16 {
+    if SUBTITLE_SIZES.contains(&value) {
+        return value;
+    }
+    match value {
+        1..=20 => SUBTITLE_SIZE_SMALLER,
+        21..=30 => SUBTITLE_SIZE_SMALL,
+        31..=44 => SUBTITLE_SIZE_NORMAL,
+        45..=64 => SUBTITLE_SIZE_LARGE,
+        _ => SUBTITLE_SIZE_LARGER,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PlayerPreferences {
     pub watched_threshold: u8,
     pub subtitle_language: String,
     pub audio_language: String,
-    /// Subtitle size in pixels, matching libVLC's `freetype-fontsize`
-    /// (valid range 0..=4096, where 0 keeps the renderer's automatic size).
+    /// Relative subtitle size matching libVLC's `freetype-rel-fontsize`.
+    /// Unlike the old absolute `freetype-fontsize` in pixels, this scales
+    /// with the video size so windowed and fullscreen look the same
+    /// proportion. Zero keeps the renderer's automatic size.
     pub subtitle_size: u16,
     /// Subtitle font family matching libVLC's `freetype-font`. Empty keeps
     /// the renderer's default. The family must be installed on the device,
@@ -78,8 +124,10 @@ impl AppConfig {
 
         let contents =
             fs::read_to_string(path).map_err(|error| AppError::Config(error.to_string()))?;
-        let config: AppConfig =
+        let mut config: AppConfig =
             serde_json::from_str(&contents).map_err(|error| AppError::Config(error.to_string()))?;
+        // Migrate legacy absolute-pixel sizes to relative buckets.
+        config.player.subtitle_size = normalize_subtitle_size(config.player.subtitle_size);
         Ok(config)
     }
 }

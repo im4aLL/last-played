@@ -37,6 +37,8 @@ export const KEYBINDING_GROUPS: KeybindingGroup[] = [
       { keys: ["S"], label: "Next subtitle track" },
       { keys: ["A"], label: "Next audio track" },
       { keys: ["C"], label: "Toggle subtitles" },
+      { keys: ["+", "="], label: "Bigger subtitles" },
+      { keys: ["-", "_"], label: "Smaller subtitles" },
     ],
   },
   {
