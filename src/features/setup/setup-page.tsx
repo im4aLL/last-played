@@ -70,10 +70,23 @@ export default function SetupPage() {
   const setTursoUrl = useAppConfig((state) => state.setTursoUrl);
   const setTursoAuthToken = useAppConfig((state) => state.setTursoAuthToken);
   const [mode, setMode] = useState<DbMode>("local");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleContinue = () => {
-    setDbMode(mode);
-    navigate("/");
+  const handleContinue = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await setDbMode(
+        mode,
+        mode === "remote" ? { tursoUrl, tursoAuthToken } : undefined,
+      );
+      navigate("/");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -139,8 +152,19 @@ export default function SetupPage() {
           </div>
         )}
 
+        {error && (
+          <p
+            role="alert"
+            className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {error}
+          </p>
+        )}
+
         <div className="flex justify-end">
-          <Button onClick={handleContinue}>Continue</Button>
+          <Button onClick={handleContinue} disabled={submitting}>
+            {submitting ? "Setting up..." : "Continue"}
+          </Button>
         </div>
       </div>
     </div>

@@ -1,14 +1,36 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+mod commands;
+mod config;
+mod db;
+mod error;
+mod state;
+
+use tauri::Manager;
+
+use crate::state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .setup(|app| {
+            let config_dir = app.path().app_config_dir()?;
+            let data_dir = app.path().app_data_dir()?;
+
+            let state = AppState::new(
+                config_dir.join(crate::config::CONFIG_FILE_NAME),
+                data_dir.join(crate::db::DB_FILE_NAME),
+            )?;
+            app.manage(state);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::config::get_config,
+            commands::config::get_device_id,
+            commands::config::save_config,
+            commands::config::set_db_mode,
+            commands::db::get_health,
+            commands::db::test_db_connection,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

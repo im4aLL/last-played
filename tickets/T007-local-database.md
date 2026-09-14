@@ -1,6 +1,6 @@
 # T007 - Local database and Local mode
 
-- Status: Todo
+- Status: Done
 - Phase: 2 - Functionality
 - Depends on: T001, T005
 - Plan refs: PLAN.md (Local config and secrets, Rust module structure), M1
@@ -28,3 +28,10 @@ On first launch the user chooses Local or Remote. Choosing Local creates a SQLit
 ## Out of scope
 
 - Real tables beyond migrations, TMDB, and Turso sync (T014).
+
+## Notes
+
+- Migration runner is in place with an empty, append-only `MIGRATIONS` list; the first real tables land in T008.
+- Per the repo convention, no unit tests were added. The runner was verified at runtime (a local file is created, the `schema_migrations` table is created, and applying is idempotent).
+- Remote mode is a stub that persists the URL/token and uses the same local file without sync; real sync arrives in T014.
+- App-wide config now lives in the Rust backend (`config.json` in the app config dir) and the webview loads/saves it through `get_config` / `save_config`. Settings shows the DB path and schema version.

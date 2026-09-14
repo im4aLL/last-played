@@ -1,6 +1,7 @@
 import { Database, KeyRound, MonitorPlay, UserRound } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import SettingField from "@/components/app/setting-field";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -17,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { testDbConnection } from "@/lib/api";
 import { LANGUAGE_OPTIONS, useAppConfig, type DbMode } from "@/lib/app-config";
 
 function SectionCard({
@@ -100,9 +102,32 @@ export default function SettingsPage() {
   const setPlayerPreferences = useAppConfig(
     (state) => state.setPlayerPreferences,
   );
+  const health = useAppConfig((state) => state.health);
+
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   const mode = dbMode ?? "local";
   const isRemote = mode === "remote";
+
+  const handleTestConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result = await testDbConnection();
+      setTestResult(`Connected. Schema version ${result.schemaVersion}.`);
+    } catch (cause) {
+      setTestResult(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleModeChange = (value: string) => {
+    void setDbMode(value as DbMode).catch((cause) => {
+      setTestResult(cause instanceof Error ? cause.message : String(cause));
+    });
+  };
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 p-6 md:p-8">
@@ -125,10 +150,7 @@ export default function SettingsPage() {
           label="Mode"
           description="Remote mode adds Turso sync on top of the local copy."
         >
-          <Select
-            value={mode}
-            onValueChange={(value) => setDbMode(value as DbMode)}
-          >
+          <Select value={mode} onValueChange={handleModeChange}>
             <SelectTrigger id="db-mode" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -176,6 +198,36 @@ export default function SettingsPage() {
             token is needed.
           </p>
         )}
+
+        <div className="grid gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-4">
+            <span>Database file</span>
+            <code className="truncate font-mono text-foreground">
+              {health?.path ?? "Not created yet"}
+            </code>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span>Schema version</span>
+            <span className="font-mono text-foreground">
+              {health?.schemaVersion ?? 0}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleTestConnection}
+            disabled={testing}
+          >
+            {testing ? "Testing..." : "Test connection"}
+          </Button>
+          {testResult && (
+            <span className="text-xs text-muted-foreground">{testResult}</span>
+          )}
+        </div>
       </SectionCard>
 
       <SectionCard
