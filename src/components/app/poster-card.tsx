@@ -1,8 +1,8 @@
-import { Check, Film, Tv, type LucideIcon } from "lucide-react";
-import { useState } from "react";
-import { cn } from "cn";
+import { Check } from "lucide-react";
+import PosterArt from "@/components/app/poster-art";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "cn";
 import type { MediaType } from "@/lib/types";
 
 type PosterCardProps = {
@@ -15,19 +15,6 @@ type PosterCardProps = {
   className?: string;
 };
 
-const MEDIA_ICONS: Record<MediaType, LucideIcon> = {
-  movie: Film,
-  tv: Tv,
-};
-
-function posterHue(seed: string) {
-  let hash = 0;
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) | 0;
-  }
-  return Math.abs(hash) % 360;
-}
-
 export default function PosterCard({
   title,
   year,
@@ -37,37 +24,16 @@ export default function PosterCard({
   watched = false,
   className,
 }: PosterCardProps) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const Icon = MEDIA_ICONS[mediaType];
-  const hue = posterHue(title);
-  const showImage = Boolean(posterUrl) && !imageFailed;
   const showProgress = !watched && progress != null && progress > 0;
 
   return (
     <div className={cn("group w-36 shrink-0 sm:w-40", className)}>
-      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-muted ring-1 ring-foreground/10 transition group-hover:ring-2 group-hover:ring-foreground/30">
-        {showImage ? (
-          <img
-            src={posterUrl ?? undefined}
-            alt={title}
-            loading="lazy"
-            onError={() => setImageFailed(true)}
-            className="size-full object-cover"
-          />
-        ) : (
-          <div
-            className="flex size-full flex-col items-center justify-center gap-2 px-3 text-center text-white"
-            style={{
-              backgroundImage: `linear-gradient(140deg, hsl(${hue} 45% 38%), hsl(${(hue + 48) % 360} 55% 18%))`,
-            }}
-          >
-            <Icon className="size-6 opacity-80" />
-            <span className="text-xs leading-tight font-medium opacity-90">
-              {title}
-            </span>
-          </div>
-        )}
-
+      <PosterArt
+        title={title}
+        posterUrl={posterUrl}
+        mediaType={mediaType}
+        className="ring-1 ring-foreground/10 transition group-hover:ring-2 group-hover:ring-foreground/30"
+      >
         {watched && (
           <span
             className="absolute top-2 right-2 flex size-6 items-center justify-center rounded-full bg-background/85 text-foreground shadow-sm"
@@ -83,7 +49,7 @@ export default function PosterCard({
             className="absolute inset-x-0 bottom-0 h-1 rounded-none bg-black/50 [&>div]:bg-white"
           />
         )}
-      </div>
+      </PosterArt>
 
       <div className="mt-2 space-y-0.5">
         <p className="truncate text-sm font-medium">{title}</p>

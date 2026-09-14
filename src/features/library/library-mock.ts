@@ -82,6 +82,21 @@ const SHOWS: MediaItem[] = [
   media("foundation", "tv", "Foundation", 2021),
 ];
 
+function indexMedia(...groups: MediaItem[][]): Record<string, MediaItem> {
+  const byId: Record<string, MediaItem> = {};
+  for (const item of groups.flat()) {
+    byId[item.id] ??= item;
+  }
+  return byId;
+}
+
+export const MOCK_MEDIA_BY_ID = indexMedia(
+  CONTINUE_WATCHING,
+  RECENTLY_ADDED,
+  MOVIES,
+  SHOWS,
+);
+
 const DEFAULT_ROWS: LibraryRow[] = [
   {
     id: "continue-watching",

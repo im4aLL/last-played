@@ -1,6 +1,6 @@
 # T004 - Media detail: seasons and episodes (mock)
 
-- Status: Todo
+- Status: Done
 - Phase: 1 - Frontend
 - Depends on: T002
 - Plan refs: PLAN.md (Frontend structure), M3

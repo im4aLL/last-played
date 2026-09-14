@@ -5,6 +5,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import EmptyState from "@/components/app/empty-state";
 import PosterCard, { PosterCardSkeleton } from "@/components/app/poster-card";
 import { Button } from "@/components/ui/button";
@@ -134,16 +135,20 @@ export default function MediaRow({
             className="flex snap-x gap-4 overflow-x-auto pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {items.map((item) => (
-              <PosterCard
+              <Link
                 key={item.id}
-                title={item.title}
-                year={item.year}
-                posterUrl={item.posterUrl}
-                mediaType={item.type}
-                progress={progressRatio(item.progress)}
-                watched={item.progress?.watched ?? false}
+                to={`/media/${item.id}`}
                 className="snap-start"
-              />
+              >
+                <PosterCard
+                  title={item.title}
+                  year={item.year}
+                  posterUrl={item.posterUrl}
+                  mediaType={item.type}
+                  progress={progressRatio(item.progress)}
+                  watched={item.progress?.watched ?? false}
+                />
+              </Link>
             ))}
           </div>
         )}

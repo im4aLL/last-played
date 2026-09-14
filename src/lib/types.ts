@@ -15,10 +15,53 @@ export type MediaItem = {
   progress: WatchProgress | null;
 };
 
+export type Episode = {
+  id: string;
+  episodeNumber: number;
+  name: string;
+  overview: string | null;
+  airDate: string | null;
+  runtimeMinutes: number | null;
+  fileLinked: boolean;
+  progress: WatchProgress | null;
+};
+
+export type Season = {
+  id: string;
+  seasonNumber: number;
+  name: string;
+  episodes: Episode[];
+};
+
+export type MediaDetail = {
+  id: string;
+  type: MediaType;
+  title: string;
+  year: number | null;
+  overview: string | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  releaseDate: string | null;
+  runtimeMinutes: number | null;
+  genres: string[];
+  progress: WatchProgress | null;
+  seasons: Season[];
+};
+
+export type EpisodeWatchState = "unwatched" | "in-progress" | "watched";
+
 export function progressRatio(progress: WatchProgress | null): number | null {
   if (!progress || progress.durationSeconds <= 0) return null;
   return Math.min(
     Math.max(progress.positionSeconds / progress.durationSeconds, 0),
     1,
   );
+}
+
+export function episodeWatchState(
+  progress: WatchProgress | null,
+): EpisodeWatchState {
+  if (!progress) return "unwatched";
+  if (progress.watched) return "watched";
+  return progress.positionSeconds > 0 ? "in-progress" : "unwatched";
 }
