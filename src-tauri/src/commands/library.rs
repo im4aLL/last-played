@@ -3,10 +3,12 @@ use std::collections::HashMap;
 use serde::Serialize;
 use tauri::State;
 
+use crate::commands::linking::VideoFileInfo;
 use crate::db::repositories::{
     episode as episode_repo, media_item as media_repo, season as season_repo,
+    video_file as video_file_repo,
 };
-use crate::domain::{Episode, MediaItem, MediaType};
+use crate::domain::{Episode, MediaItem, MediaType, VideoFile};
 use crate::error::{AppError, Result};
 use crate::services::tmdb::{backdrop_url, poster_url};
 use crate::state::AppState;
@@ -41,6 +43,7 @@ pub struct EpisodeDetail {
     pub air_date: Option<String>,
     pub runtime_minutes: Option<i64>,
     pub file_linked: bool,
+    pub video_file: Option<VideoFileInfo>,
     pub progress: Option<WatchProgress>,
 }
 
@@ -68,6 +71,7 @@ pub struct MediaDetail {
     pub runtime_minutes: Option<i64>,
     pub genres: Vec<String>,
     pub progress: Option<WatchProgress>,
+    pub video_file: Option<VideoFileInfo>,
     pub seasons: Vec<SeasonDetail>,
 }
 
@@ -93,7 +97,8 @@ fn summary_from(item: MediaItem) -> MediaSummary {
     }
 }
 
-fn episode_detail(episode: Episode) -> EpisodeDetail {
+fn episode_detail(episode: Episode, video_file: Option<VideoFile>) -> EpisodeDetail {
+    let file_linked = video_file.is_some();
     EpisodeDetail {
         id: episode.id,
         episode_number: episode.episode_number,
@@ -101,7 +106,8 @@ fn episode_detail(episode: Episode) -> EpisodeDetail {
         overview: episode.overview,
         air_date: episode.air_date,
         runtime_minutes: episode.runtime,
-        file_linked: false,
+        file_linked,
+        video_file: video_file.map(VideoFileInfo::from),
         progress: None,
     }
 }
@@ -122,6 +128,19 @@ pub async fn get_media(state: State<'_, AppState>, media_id: String) -> Result<M
 
     let seasons = season_repo::list_for_media(&connection, &media_id).await?;
     let episodes = episode_repo::list_for_media(&connection, &media_id).await?;
+    let files =
+        video_file_repo::list_for_media(&connection, &media_id, &state.config().device_id).await?;
+
+    let mut files_by_episode: HashMap<String, VideoFile> = HashMap::new();
+    let mut movie_file: Option<VideoFile> = None;
+    for file in files {
+        match &file.episode_id {
+            Some(episode_id) => {
+                files_by_episode.insert(episode_id.clone(), file);
+            }
+            None => movie_file = Some(file),
+        }
+    }
 
     let mut episodes_by_season: HashMap<String, Vec<Episode>> = HashMap::new();
     for episode in episodes {
@@ -139,7 +158,13 @@ pub async fn get_media(state: State<'_, AppState>, media_id: String) -> Result<M
                 id: season.id,
                 season_number: season.season_number,
                 name: season.name,
-                episodes: episodes.into_iter().map(episode_detail).collect(),
+                episodes: episodes
+                    .into_iter()
+                    .map(|episode| {
+                        let file = files_by_episode.remove(&episode.id);
+                        episode_detail(episode, file)
+                    })
+                    .collect(),
             }
         })
         .collect();
@@ -170,6 +195,7 @@ pub async fn get_media(state: State<'_, AppState>, media_id: String) -> Result<M
         runtime_minutes: runtime,
         genres: Vec::new(),
         progress: None,
+        video_file: movie_file.map(VideoFileInfo::from),
         seasons: season_details,
     })
 }

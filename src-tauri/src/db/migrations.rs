@@ -52,11 +52,43 @@ CREATE TABLE episode (
 );
 ";
 
-pub const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "create_media_tables",
-    sql: CREATE_MEDIA_TABLES,
-}];
+const CREATE_LINKING_TABLES: &str = "
+CREATE TABLE device (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+);
+
+CREATE TABLE video_file (
+    id TEXT PRIMARY KEY,
+    media_item_id TEXT NOT NULL REFERENCES media_item(id) ON DELETE CASCADE,
+    episode_id TEXT REFERENCES episode(id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL REFERENCES device(id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    size_bytes INTEGER,
+    mtime INTEGER,
+    container TEXT,
+    added_at TEXT NOT NULL,
+    UNIQUE (device_id, path)
+);
+
+CREATE INDEX video_file_media_item_id_idx ON video_file (media_item_id);
+CREATE INDEX video_file_episode_id_idx ON video_file (episode_id);
+";
+
+pub const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "create_media_tables",
+        sql: CREATE_MEDIA_TABLES,
+    },
+    Migration {
+        version: 2,
+        name: "create_linking_tables",
+        sql: CREATE_LINKING_TABLES,
+    },
+];
 
 const CREATE_MIGRATIONS_TABLE: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY,

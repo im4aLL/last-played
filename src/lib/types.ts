@@ -6,6 +6,15 @@ export type WatchProgress = {
   watched: boolean;
 };
 
+export type VideoFile = {
+  id: string;
+  path: string;
+  fileName: string;
+  sizeBytes: number | null;
+  mtime: number | null;
+  container: string | null;
+};
+
 export type MediaItem = {
   id: string;
   type: MediaType;
@@ -23,6 +32,7 @@ export type Episode = {
   airDate: string | null;
   runtimeMinutes: number | null;
   fileLinked: boolean;
+  videoFile: VideoFile | null;
   progress: WatchProgress | null;
 };
 
@@ -45,6 +55,7 @@ export type MediaDetail = {
   runtimeMinutes: number | null;
   genres: string[];
   progress: WatchProgress | null;
+  videoFile: VideoFile | null;
   seasons: Season[];
 };
 

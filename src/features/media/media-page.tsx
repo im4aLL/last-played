@@ -57,7 +57,7 @@ export default function MediaPage() {
 
       {detail.type === "tv" && detail.seasons.length > 0 && (
         <div className="mt-8 px-6 md:px-8">
-          <SeasonSection seasons={detail.seasons} />
+          <SeasonSection mediaId={detail.id} seasons={detail.seasons} />
         </div>
       )}
     </div>

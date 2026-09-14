@@ -56,6 +56,16 @@ impl AppState {
         }
 
         let database = Database::open_local(&self.db_path).await?;
+        let config = self.config();
+        let connection = database.connect()?;
+        crate::db::repositories::device::register(
+            &connection,
+            &config.device_id,
+            &config.device_name,
+            std::env::consts::OS,
+        )
+        .await?;
+
         *guard = Some(database.clone());
         Ok(database)
     }

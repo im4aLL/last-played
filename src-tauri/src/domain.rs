@@ -56,6 +56,18 @@ pub struct Season {
 }
 
 #[derive(Debug, Clone)]
+pub struct VideoFile {
+    pub id: String,
+    pub media_item_id: String,
+    pub episode_id: Option<String>,
+    pub device_id: String,
+    pub path: String,
+    pub size_bytes: Option<i64>,
+    pub mtime: Option<i64>,
+    pub container: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Episode {
     pub id: String,
     pub season_id: String,

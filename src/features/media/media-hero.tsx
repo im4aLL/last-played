@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import PosterArt from "@/components/app/poster-art";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import LinkFileButton from "@/features/linking/link-file-button";
+import LinkedFile from "@/features/linking/linked-file";
 import { formatCount, formatRuntime } from "@/lib/format";
 import { posterHue } from "@/lib/poster";
 import { progressRatio, type MediaDetail } from "@/lib/types";
@@ -89,13 +91,20 @@ export default function MediaHero({ detail }: MediaHeroProps) {
               </p>
             )}
 
-            <div className="pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button asChild size="lg">
                 <Link to={`/player/${detail.id}`}>
                   <Play />
                   {isResumable ? "Resume" : "Play"}
                 </Link>
               </Button>
+
+              {detail.type === "movie" &&
+                (detail.videoFile ? (
+                  <LinkedFile mediaId={detail.id} file={detail.videoFile} />
+                ) : (
+                  <LinkFileButton mediaId={detail.id} size="lg" />
+                ))}
             </div>
           </div>
         </div>

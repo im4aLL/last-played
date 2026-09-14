@@ -1,18 +1,22 @@
 import { Check, FileCheck2, FileX2, Play } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "cn";
+import LinkFileButton from "@/features/linking/link-file-button";
+import LinkedFile from "@/features/linking/linked-file";
 import { episodeWatchState, type Episode } from "@/lib/types";
 
-type EpisodeStatusProps = Pick<Episode, "fileLinked" | "progress"> & {
+type EpisodeStatusProps = {
+  mediaId: string;
+  episode: Episode;
   className?: string;
 };
 
 export default function EpisodeStatus({
-  fileLinked,
-  progress,
+  mediaId,
+  episode,
   className,
 }: EpisodeStatusProps) {
-  const watchState = episodeWatchState(progress);
+  const watchState = episodeWatchState(episode.progress);
 
   return (
     <div
@@ -22,11 +26,11 @@ export default function EpisodeStatus({
       )}
     >
       <Badge
-        variant={fileLinked ? "secondary" : "outline"}
-        className={fileLinked ? undefined : "text-muted-foreground"}
+        variant={episode.fileLinked ? "secondary" : "outline"}
+        className={episode.fileLinked ? undefined : "text-muted-foreground"}
       >
-        {fileLinked ? <FileCheck2 /> : <FileX2 />}
-        {fileLinked ? "Linked" : "Unlinked"}
+        {episode.fileLinked ? <FileCheck2 /> : <FileX2 />}
+        {episode.fileLinked ? "Linked" : "Unlinked"}
       </Badge>
 
       {watchState === "watched" && (
@@ -41,6 +45,12 @@ export default function EpisodeStatus({
           <Play />
           In progress
         </Badge>
+      )}
+
+      {episode.videoFile ? (
+        <LinkedFile mediaId={mediaId} file={episode.videoFile} />
+      ) : (
+        <LinkFileButton mediaId={mediaId} episodeId={episode.id} />
       )}
     </div>
   );

@@ -12,6 +12,7 @@ import type {
   MediaPreview,
   MediaType,
   TmdbSearchResult,
+  VideoFile,
 } from "./types";
 
 export function getConfig(): Promise<AppConfig> {
@@ -74,4 +75,22 @@ export function listMedia(): Promise<MediaItem[]> {
 
 export function getMedia(mediaId: string): Promise<MediaDetail> {
   return invoke<MediaDetail>("get_media", { mediaId });
+}
+
+export function linkMovieFile(
+  mediaId: string,
+  path: string,
+): Promise<VideoFile> {
+  return invoke<VideoFile>("link_movie_file", { mediaId, path });
+}
+
+export function linkEpisodeFile(
+  episodeId: string,
+  path: string,
+): Promise<VideoFile> {
+  return invoke<VideoFile>("link_episode_file", { episodeId, path });
+}
+
+export function unlinkVideoFile(videoFileId: string): Promise<void> {
+  return invoke<void>("unlink_video_file", { videoFileId });
 }

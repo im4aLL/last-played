@@ -83,6 +83,21 @@ pub async fn list_for_media(conn: &Connection, media_item_id: &str) -> Result<Ve
     Ok(episodes)
 }
 
+pub async fn find_by_id(conn: &Connection, id: &str) -> Result<Option<Episode>> {
+    let mut rows = conn
+        .query(
+            &format!("SELECT {COLUMNS} FROM episode WHERE id = ?1"),
+            (id,),
+        )
+        .await
+        .map_err(AppError::from)?;
+
+    match rows.next().await.map_err(AppError::from)? {
+        Some(row) => Ok(Some(from_row(&row)?)),
+        None => Ok(None),
+    }
+}
+
 pub async fn find_id(
     conn: &Connection,
     season_id: &str,

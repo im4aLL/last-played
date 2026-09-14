@@ -14,6 +14,7 @@ use crate::state::AppState;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let data_dir = app.path().app_data_dir()?;
@@ -38,6 +39,9 @@ pub fn run() {
             commands::media::refresh_metadata,
             commands::library::list_media,
             commands::library::get_media,
+            commands::linking::link_movie_file,
+            commands::linking::link_episode_file,
+            commands::linking::unlink_video_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

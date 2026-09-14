@@ -11,10 +11,14 @@ import { formatCount } from "@/lib/format";
 import type { Season } from "@/lib/types";
 
 type SeasonSectionProps = {
+  mediaId: string;
   seasons: Season[];
 };
 
-export default function SeasonSection({ seasons }: SeasonSectionProps) {
+export default function SeasonSection({
+  mediaId,
+  seasons,
+}: SeasonSectionProps) {
   const [activeSeasonId, setActiveSeasonId] = useState(seasons[0]?.id ?? "");
   const activeSeason =
     seasons.find((season) => season.id === activeSeasonId) ?? seasons[0];
@@ -42,7 +46,7 @@ export default function SeasonSection({ seasons }: SeasonSectionProps) {
         </Select>
       </div>
 
-      <EpisodeList episodes={activeSeason.episodes} />
+      <EpisodeList mediaId={mediaId} episodes={activeSeason.episodes} />
     </section>
   );
 }

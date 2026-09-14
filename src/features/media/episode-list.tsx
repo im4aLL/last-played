@@ -7,10 +7,17 @@ import { posterHue } from "@/lib/poster";
 import { progressRatio, type Episode } from "@/lib/types";
 
 type EpisodeListProps = {
+  mediaId: string;
   episodes: Episode[];
 };
 
-function EpisodeRow({ episode }: { episode: Episode }) {
+function EpisodeRow({
+  mediaId,
+  episode,
+}: {
+  mediaId: string;
+  episode: Episode;
+}) {
   const ratio = progressRatio(episode.progress);
   const runtime = formatRuntime(episode.runtimeMinutes);
   const airDate = formatAirDate(episode.airDate);
@@ -69,15 +76,15 @@ function EpisodeRow({ episode }: { episode: Episode }) {
       </div>
 
       <EpisodeStatus
-        fileLinked={episode.fileLinked}
-        progress={episode.progress}
+        mediaId={mediaId}
+        episode={episode}
         className="shrink-0 sm:max-w-[16rem]"
       />
     </li>
   );
 }
 
-export default function EpisodeList({ episodes }: EpisodeListProps) {
+export default function EpisodeList({ mediaId, episodes }: EpisodeListProps) {
   if (episodes.length === 0) {
     return <EmptyState icon={Tv} title="No episodes for this season yet" />;
   }
@@ -85,7 +92,7 @@ export default function EpisodeList({ episodes }: EpisodeListProps) {
   return (
     <ul className="divide-y">
       {episodes.map((episode) => (
-        <EpisodeRow key={episode.id} episode={episode} />
+        <EpisodeRow key={episode.id} mediaId={mediaId} episode={episode} />
       ))}
     </ul>
   );

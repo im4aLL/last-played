@@ -25,7 +25,7 @@ Each ticket is a standalone file named `TNNN-short-title.md` and carries its own
 | T007 | Local database and Local mode | 2 - Functionality | T001, T005 | Done |
 | T008 | TMDB client and add media | 2 - Functionality | T007 | Done |
 | T009 | Wire library and media detail to real data | 2 - Functionality | T003, T004, T008 | Done |
-| T010 | Link a single movie or episode file | 2 - Functionality | T009 | Todo |
+| T010 | Link a single movie or episode file | 2 - Functionality | T009 | Done |
 | T011 | Bulk folder scan and apply matches | 2 - Functionality | T010 | Todo |
 | T012 | Embedded libVLC playback (spike first) | 2 - Functionality | T006, T010 | Todo |
 | T013 | Resume and watched tracking | 2 - Functionality | T012 | Todo |
