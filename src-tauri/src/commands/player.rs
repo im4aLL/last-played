@@ -86,9 +86,15 @@ pub async fn play_video(
     if path.is_empty() {
         return Err(AppError::Player("No video file was provided.".to_string()));
     }
-    if !Path::new(&path).is_file() {
+    let file_path = Path::new(&path);
+    if !file_path.exists() {
         return Err(AppError::Player(format!(
-            "The linked file could not be found: {path}"
+            "The linked file no longer exists at {path}. It may have been moved or deleted; link it again from the media page."
+        )));
+    }
+    if !file_path.is_file() {
+        return Err(AppError::Player(format!(
+            "The linked path is not a file: {path}"
         )));
     }
 
@@ -100,7 +106,8 @@ pub async fn play_video(
 
     let mut guard = state.player();
     if guard.is_none() {
-        *guard = Some(PlayerService::new()?);
+        let bundle_dir = state.bundled_vlc_dir();
+        *guard = Some(PlayerService::new(bundle_dir.as_deref())?);
     }
 
     let player = guard

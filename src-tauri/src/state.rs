@@ -12,6 +12,7 @@ use crate::services::sync::SyncManager;
 pub struct AppState {
     config_path: PathBuf,
     db_path: PathBuf,
+    resource_dir: PathBuf,
     config: Mutex<AppConfig>,
     database: AsyncMutex<Option<Database>>,
     player: Mutex<Option<PlayerService>>,
@@ -20,17 +21,28 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(config_path: PathBuf, db_path: PathBuf) -> Result<Self> {
+    pub fn new(config_path: PathBuf, db_path: PathBuf, resource_dir: PathBuf) -> Result<Self> {
         let config = AppConfig::load(&config_path)?;
         Ok(Self {
             config_path,
             db_path,
+            resource_dir,
             config: Mutex::new(config),
             database: AsyncMutex::new(None),
             player: Mutex::new(None),
             surface: Mutex::new(None),
             sync: SyncManager::new(),
         })
+    }
+
+    /// The directory holding bundled libVLC libraries and plugins, if present.
+    ///
+    /// Packaged builds ship a `vlc` folder next to the app resources so the app
+    /// does not depend on a system VLC install. Development builds usually do
+    /// not have it and fall back to the system library search.
+    pub fn bundled_vlc_dir(&self) -> Option<PathBuf> {
+        let dir = self.resource_dir.join("vlc");
+        dir.is_dir().then_some(dir)
     }
 
     pub fn player(&self) -> std::sync::MutexGuard<'_, Option<PlayerService>> {

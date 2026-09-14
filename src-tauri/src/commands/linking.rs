@@ -20,6 +20,9 @@ pub struct VideoFileInfo {
     pub size_bytes: Option<i64>,
     pub mtime: Option<i64>,
     pub container: Option<String>,
+    /// True when the file is no longer present on this device, so the UI can
+    /// prompt the user to relink instead of failing at play time.
+    pub missing: bool,
 }
 
 impl From<VideoFile> for VideoFileInfo {
@@ -28,6 +31,7 @@ impl From<VideoFile> for VideoFileInfo {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| file.path.clone());
+        let missing = !Path::new(&file.path).is_file();
         Self {
             id: file.id,
             path: file.path,
@@ -35,6 +39,7 @@ impl From<VideoFile> for VideoFileInfo {
             size_bytes: file.size_bytes,
             mtime: file.mtime,
             container: file.container,
+            missing,
         }
     }
 }

@@ -28,6 +28,9 @@ export const DOCK_HIDE_MS = 3000;
 export const FEEDBACK_MS = 900;
 export const PROGRESS_SAVE_INTERVAL_MS = 5000;
 
+const UNPLAYABLE_MESSAGE =
+  "This file could not be played. It may be corrupt or use a format libVLC cannot decode.";
+
 export type PlayerPhase = "loading" | "error" | "ready";
 export type PlaybackStatus = "playing" | "paused" | "buffering" | "ended";
 
@@ -269,6 +272,12 @@ export function usePlayer(
           measureBounds(),
         );
         setBackend(state);
+        // libVLC can reject a file immediately (corrupt or unsupported). Surface
+        // it as a playback error instead of leaving the UI on a stuck spinner.
+        if (state.status === "error") {
+          setPlaybackError(new Error(UNPLAYABLE_MESSAGE));
+          return;
+        }
         const bounds = measureBounds();
         if (bounds) {
           void api.setPlayerBounds(bounds).catch(() => undefined);
@@ -365,6 +374,10 @@ export function usePlayer(
         (next) => {
           setBackend(next);
           backendRef.current = next;
+          if (next.status === "error") {
+            setPlaybackError(new Error(UNPLAYABLE_MESSAGE));
+            return;
+          }
           persistProgress(currentRef.current, next, false);
         },
         () => undefined,

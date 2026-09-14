@@ -13,6 +13,7 @@ export type VideoFile = {
   sizeBytes: number | null;
   mtime: number | null;
   container: string | null;
+  missing: boolean;
 };
 
 export type MediaItem = {

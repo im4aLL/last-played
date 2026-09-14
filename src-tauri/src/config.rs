@@ -82,6 +82,24 @@ pub fn save(path: &Path, config: &AppConfig) -> Result<()> {
     let contents = serde_json::to_string_pretty(config)
         .map_err(|error| AppError::Config(error.to_string()))?;
     fs::write(path, contents).map_err(|error| AppError::Config(error.to_string()))?;
+    restrict_permissions(path)?;
+    Ok(())
+}
+
+/// The config file holds the TMDB API key and the Turso auth token. Keep it
+/// readable and writable only by the current user, since the whole database
+/// (including this file's directory) may be visible to other local accounts.
+#[cfg(unix)]
+fn restrict_permissions(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let permissions = fs::Permissions::from_mode(0o600);
+    fs::set_permissions(path, permissions).map_err(|error| AppError::Config(error.to_string()))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn restrict_permissions(_path: &Path) -> Result<()> {
     Ok(())
 }
 

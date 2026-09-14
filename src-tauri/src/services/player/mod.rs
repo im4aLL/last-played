@@ -146,8 +146,8 @@ pub struct PlayerService {
 unsafe impl Send for PlayerService {}
 
 impl PlayerService {
-    pub fn new() -> Result<Self> {
-        let vlc = Vlc::load(locate_plugins().as_deref())?;
+    pub fn new(bundle_dir: Option<&Path>) -> Result<Self> {
+        let vlc = Vlc::load(locate_plugins(bundle_dir).as_deref(), bundle_dir)?;
         let media_player = unsafe { (vlc.fns.libvlc_media_player_new)(vlc.instance) };
         if media_player.is_null() {
             return Err(AppError::Player(
@@ -470,12 +470,30 @@ fn candidate_dirs() -> Vec<PathBuf> {
     }
 }
 
-pub(crate) fn locate_library() -> Result<PathBuf> {
+/// Directories inside the bundled `vlc` folder that may hold the shared
+/// library. Windows ships the DLL next to the plugins; macOS and Linux keep
+/// it in a `lib` subfolder.
+fn bundle_library_dirs(bundle_dir: &Path) -> [PathBuf; 2] {
+    [bundle_dir.to_path_buf(), bundle_dir.join("lib")]
+}
+
+pub(crate) fn locate_library(bundle_dir: Option<&Path>) -> Result<PathBuf> {
+    if let Some(bundle_dir) = bundle_dir {
+        for dir in bundle_library_dirs(bundle_dir) {
+            if let Some(path) = library_in_dir(&dir) {
+                return Ok(path);
+            }
+        }
+    }
+
     if let Ok(dir) = std::env::var("LAST_PLAYED_VLC_DIR") {
-        if let Some(path) = library_in_dir(Path::new(&dir)) {
+        if let Some(path) = library_in_dir(&PathBuf::from(&dir))
+            .or_else(|| library_in_dir(&PathBuf::from(&dir).join("lib")))
+        {
             return Ok(path);
         }
     }
+
     for dir in candidate_dirs() {
         if let Some(path) = library_in_dir(&dir) {
             return Ok(path);
@@ -488,7 +506,14 @@ pub(crate) fn locate_library() -> Result<PathBuf> {
     ))
 }
 
-fn locate_plugins() -> Option<PathBuf> {
+fn locate_plugins(bundle_dir: Option<&Path>) -> Option<PathBuf> {
+    if let Some(bundle_dir) = bundle_dir {
+        let plugins = bundle_dir.join("plugins");
+        if plugins.is_dir() {
+            return Some(plugins);
+        }
+    }
+
     if std::env::var_os("VLC_PLUGIN_PATH").is_some() {
         return None;
     }

@@ -111,12 +111,12 @@ unsafe impl Send for Vlc {}
 unsafe impl Sync for Vlc {}
 
 impl Vlc {
-    pub fn load(plugin_path: Option<&Path>) -> Result<Self> {
+    pub fn load(plugin_path: Option<&Path>, bundle_dir: Option<&Path>) -> Result<Self> {
         if let Some(plugin_path) = plugin_path {
             std::env::set_var("VLC_PLUGIN_PATH", plugin_path);
         }
 
-        let library_path = super::locate_library()?;
+        let library_path = super::locate_library(bundle_dir)?;
         preload_core(&library_path);
 
         let library = unsafe {
@@ -174,14 +174,19 @@ impl Drop for Vlc {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn preload_core(library_path: &Path) {
     use libloading::os::unix::{Library as UnixLibrary, RTLD_GLOBAL, RTLD_NOW};
 
     let Some(dir) = library_path.parent() else {
         return;
     };
-    for candidate in ["libvlccore.dylib", "libvlccore.9.dylib"] {
+    let candidates: &[&str] = if cfg!(target_os = "macos") {
+        &["libvlccore.dylib", "libvlccore.9.dylib"]
+    } else {
+        &["libvlccore.so.9", "libvlccore.so"]
+    };
+    for candidate in candidates {
         let path = dir.join(candidate);
         if path.exists() {
             if let Ok(core) = unsafe { UnixLibrary::open(Some(&path), RTLD_NOW | RTLD_GLOBAL) } {
@@ -192,5 +197,17 @@ fn preload_core(library_path: &Path) {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
-fn preload_core(_library_path: &Path) {}
+/// Preloads `libvlccore` on Windows so the bundled `libvlc.dll` resolves its
+/// dependency from the same folder before the plugins are loaded.
+#[cfg(windows)]
+fn preload_core(library_path: &Path) {
+    let Some(dir) = library_path.parent() else {
+        return;
+    };
+    let path = dir.join("libvlccore.dll");
+    if path.exists() {
+        if let Ok(core) = unsafe { libloading::Library::new(&path) } {
+            std::mem::forget(core);
+        }
+    }
+}

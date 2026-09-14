@@ -1,6 +1,7 @@
-import { FileVideo, Loader2, X } from "lucide-react";
+import { FileVideo, Loader2, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLinkFile } from "@/features/linking/use-link-file";
+import { cn } from "cn";
 import type { VideoFile } from "@/lib/types";
 
 type LinkedFileProps = {
@@ -18,11 +19,21 @@ export default function LinkedFile({
 
   return (
     <span
-      className={`inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground ${className ?? ""}`}
+      className={cn(
+        "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground",
+        file.missing && "bg-destructive/10 text-destructive",
+        className,
+      )}
+      title={file.missing ? `${file.path} (missing)` : file.path}
     >
-      <FileVideo className="size-3.5 shrink-0" />
-      <span className="truncate" title={file.path}>
+      {file.missing ? (
+        <TriangleAlert className="size-3.5 shrink-0" />
+      ) : (
+        <FileVideo className="size-3.5 shrink-0" />
+      )}
+      <span className="truncate">
         {file.fileName}
+        {file.missing && " - file missing"}
       </span>
       <Button
         type="button"

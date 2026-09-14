@@ -32,7 +32,7 @@ Each ticket is a standalone file named `TNNN-short-title.md` and carries its own
 | T014 | Turso remote database and sync | 2 - Functionality | T007, T009 | Done |
 | T015 | Subtitles, audio tracks, preferences | 2 - Functionality | T012, T013 | Done |
 | T016 | Dashboard and library polish | 2 - Functionality | T009, T011, T013 | Done |
-| T017 | Cross-platform packaging and hardening | 2 - Functionality | T012, T014, T015 | Todo |
+| T017 | Cross-platform packaging and hardening | 2 - Functionality | T012, T014, T015 | Done |
 
 ## Working agreement
 

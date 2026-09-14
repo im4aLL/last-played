@@ -18,10 +18,12 @@ pub fn run() {
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let data_dir = app.path().app_data_dir()?;
+            let resource_dir = app.path().resource_dir()?;
 
             let state = AppState::new(
                 config_dir.join(crate::config::CONFIG_FILE_NAME),
                 data_dir.join(crate::db::DB_FILE_NAME),
+                resource_dir,
             )?;
             app.manage(state);
 
