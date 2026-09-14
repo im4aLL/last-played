@@ -1,0 +1,3 @@
+- Do not write unit test
+- Do not try to do playwright tests by yourself, I will check manually
+- For UI components use components listed here https://ui.shadcn.com/docs/components

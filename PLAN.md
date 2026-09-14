@@ -1,6 +1,6 @@
 # Last Played - Implementation Plan
 
-A cross-platform desktop app for building a personal movie and TV library from local video files, with metadata from TMDB, an embedded mpv player, and cross-device sync of watch progress via a Turso-backed database.
+A cross-platform desktop app for building a personal movie and TV library from local video files, with metadata from TMDB, an embedded libVLC player, and cross-device sync of watch progress via a Turso-backed database.
 
 ## Problem
 
@@ -20,7 +20,7 @@ Local media collections are large and easy to lose track of. For TV series it is
 
 - Streaming or downloading media.
 - Transcoding or format conversion.
-- Remote/network media sources (HTTP URLs) beyond what mpv natively supports.
+- Remote/network media sources (HTTP URLs) beyond what libVLC natively supports.
 - User accounts, multi-user profiles, or sharing a library with other people.
 - Mobile clients.
 - Automatic filesystem watching / live re-scan on file change (manual scan first).
@@ -30,8 +30,8 @@ Local media collections are large and easy to lose track of. For TV series it is
 
 - Framework: Tauri v2 with a React + TypeScript frontend.
 - Metadata: TMDB, using a user-supplied API key entered in Settings.
-- Playback: bundled mpv, rendering embedded in the app window. Bundling is the chosen approach; the app accepts the GPL obligations that come with distributing mpv.
-- Remote database: Turso embedded replica that syncs a local SQLite file.
+- Playback: bundled libVLC (dynamically linked), rendering embedded in the app window via the per-OS native embed API (`set_hwnd` / `set_nsobject` / `set_xwindow`). libVLC is LGPL v2.1+, so dynamic linking keeps the app closed-source.
+- Remote database: the `turso` crate with `turso::sync`, syncing a local SQLite-compatible file via explicit `push()` / `pull()`.
 - Platforms: macOS, Windows, and Linux. Video file paths are device-scoped.
 - Progress: auto-save playback position; mark watched past a configurable threshold (default 90%), plus manual override. Progress is global (one value per movie/episode), so resume position and watched state are the same on every device.
 - Subtitles: embedded tracks plus external `.srt`/`.ass` sidecar files.
@@ -51,27 +51,27 @@ Local media collections are large and easy to lose track of. For TV series it is
 |  Tauri Rust core                                              |
 |  commands/  -> thin request handlers                          |
 |  services/  -> TmdbClient, Scanner, PlayerService, SyncService|
-|  db/        -> libsql connection, migrations, repositories    |
+|  db/        -> turso connection, migrations, repositories     |
 |  config/    -> local app config + secrets (not synced)        |
 +----+---------------------+----------------------+-------------+
      |                     |                      |
      v                     v                      v
-  libsql SQLite       TMDB REST API          mpv process
-  (local or           (reqwest)              (sidecar, JSON IPC,
-   embedded                                   embedded via window id)
-   replica <-> Turso)
+  turso SQLite        TMDB REST API           libVLC native
+  (local or           (reqwest)               embed in app
+   sync <-> Turso)                             window, dynamic
+                                               link)
 ```
 
 ## Tech stack
 
 - Shell: Tauri v2.
 - Frontend: React + TypeScript + Vite, React Router for screens, TanStack Query for server-state/caching, Zustand for small shared UI state (player status, current device).
-- Styling: plain CSS with CSS Modules, BEM class names, and CSS custom properties for design tokens (per `CODING_STYLE.md`).
-- Backend: Rust. `libsql` (SQLite + embedded replica + Turso sync), `reqwest` (TMDB), `serde`/`serde_json`, `tokio`, `regex`, `walkdir`, `thiserror`.
-- Player: bundled mpv binary as a Tauri sidecar, controlled over JSON IPC, embedded into the app window via the mpv window-id option.
+- Styling: Tailwind CSS v4 (Vite plugin) with shadcn/ui components. Theme tokens are shadcn CSS variables; no CSS Modules or BEM layer.
+- Backend: Rust. `turso` (local SQLite + optional `turso::sync` with Turso), `reqwest` (TMDB), `serde`/`serde_json`, `tokio`, `regex`, `walkdir`, `thiserror`.
+- Player: bundled libVLC (shared library, dynamically linked), embedded into the app window with the per-OS native handle (`set_hwnd` / `set_nsobject` / `set_xwindow`) behind `PlayerService`.
 - Local secrets/config: Tauri store (JSON in the app config dir); OS keychain as a later hardening step.
 
-The key simplification: use `libsql` for both modes. Local mode opens a plain SQLite file; remote mode opens the same file as an embedded replica with a sync URL and auth token. One data layer, two configurations.
+The key simplification: use `turso` for both modes. Local mode opens a plain SQLite-compatible file; remote mode opens the same file through `turso::sync` with a remote URL and auth token, then `push()`/`pull()` on demand. One data layer, two configurations.
 
 ## Data model
 
@@ -93,10 +93,10 @@ Design rules:
 
 ## Local config and secrets
 
-The whole database replicates, so anything that must stay on one machine or must stay secret lives outside it, in a local app config file.
+The whole database syncs, so anything that must stay on one machine or must stay secret lives outside it, in a local app config file.
 
 - `device_id` (generated once per machine), `device_name`.
-- `db_mode` (`local` | `remote`), `turso_url`, `turso_auth_token`.
+- `db_mode` (`local` | `remote`), and in remote mode only: `turso_url`, `turso_auth_token`. Local mode requires neither and never prompts for them.
 - `tmdb_api_key`.
 - Player preferences: watched threshold, preferred subtitle/audio language, volume.
 
@@ -110,14 +110,14 @@ src-tauri/src/
   lib.rs                  (app setup, plugin registration, state)
   config/                 (load/save local config + secrets, device identity)
   db/
-    mod.rs                (connect local vs embedded replica, sync)
+    mod.rs                (connect local vs sync, push/pull)
     migrations.rs         (versioned embedded SQL migrations)
     repositories/         (media, season, episode, video_file, progress)
   domain/                 (plain structs: MediaItem, Season, Episode, VideoFile, WatchProgress)
   services/
     tmdb/                 (TmdbClient, search, details, season/episode, image URLs)
     scanner/              (folder walk, SxxExx + NxNN parsing, match proposal)
-    player/               (mpv sidecar lifecycle, IPC client, embedding, state polling)
+    player/               (libVLC lifecycle, FFI wrapper, per-OS embed, state polling)
     sync/                 (Turso sync trigger + status)
   commands/               (thin #[tauri::command] handlers grouped by area)
 ```
@@ -137,18 +137,21 @@ Command surface (initial):
 src/
   main.tsx
   App.tsx                 (router + layout shell)
-  styles/                 (tokens.css, base.css)
-  components/             (Button, Poster, Spinner, EmptyState, Modal, ...)
+  index.css               (Tailwind import + shadcn theme tokens)
+  components/
+    ui/                   (shadcn components: Button, Dialog, ...)
+    app/                  (Poster, Spinner, EmptyState, ...)
   features/
     setup/                (first-run DB mode selection)
     library/              (grid + rows: Continue Watching, Recently Added, All)
     media/                (movie/show detail, seasons, episodes, watch state)
     linking/              (file picker, folder scan preview + confirm)
-    player/               (video surface mount + overlay controls + keybindings)
-    settings/             (TMDB key, Turso config, device name, player prefs)
+    player/               (native video surface mount + dock controls + keybindings)
+    settings/             (TMDB key, device name, player prefs; Turso config only in remote mode)
   lib/
     api.ts                (typed wrappers over invoke)
     types.ts              (shared domain types)
+    utils.ts              (shadcn cn helper)
   hooks/                  (usePlayer, useProgress, useMedia, ...)
 ```
 
@@ -173,15 +176,18 @@ src/
 
 ## Player design
 
-Primary approach (lowest risk while still embedded):
+Engine: libVLC, bundled as a dynamically linked shared library per platform (LGPL v2.1+, so dynamic linking keeps the app closed-source). VLC renders into its own native surface, and its docs explicitly recommend embedding over pixel callbacks for performance.
 
-- Ship the mpv binary with the app as a Tauri `externalBin` sidecar, located at runtime per platform.
-- Launch mpv with `--input-ipc-server` pointing at a per-run socket (Unix) or named pipe (Windows), plus `--sub-auto=fuzzy`, `--save-position-on-quit=no` (we manage position ourselves), and hardware decoding defaults.
-- Embed by passing the Tauri window handle via mpv's window-id option so video renders inside the app window. A transparent overlay layer hosts custom controls and keyboard handling.
-- Control and observe mpv over JSON IPC: `play/pause`, `seek`, `volume`, `subtitle-add`/`sub-visibility`, `aid`/`sid` track selection, `get_property time-pos`/`duration`/`track-list`.
-- Poll player state a few times per second while playing and persist progress on a debounce plus on pause/stop/close.
+Primary approach (embedded native surface):
 
-Fallback (kept behind the `PlayerService` boundary): if window-id embedding proves unreliable on a platform, render in a dedicated borderless mpv window that is positioned over the app and controlled the same way. The rest of the app only talks to `PlayerService`, so this swap is contained.
+- Ship the libVLC shared libraries plus the VLC plugins directory with the app; set the plugin search path at runtime (`VLC_PLUGIN_PATH`) per platform.
+- Embed the video surface into the Tauri window with the per-OS handle: Windows `libvlc_media_player_set_hwnd`, macOS `libvlc_media_player_set_nsobject` (NSView), Linux `libvlc_media_player_set_xwindow` (X11; XWayland under Wayland).
+- Talk to libVLC through a thin Rust FFI wrapper behind `PlayerService`: `play`/`pause`/`set_time`/`set_position`/`set_volume`, audio/subtitle track selection, and event callbacks (`time_changed`, `length_changed`, `end_reached`, `playing`, `paused`). No out-of-process IPC is needed in the primary path.
+- Poll or read cached state a few times per second while playing and persist progress on a debounce plus on pause/stop/close.
+
+Compositing constraint: the native video surface is composited above the webview, so HTML controls cannot reliably render on top of the video. Because this app is keyboard-first, use a reserved-height control dock below the video surface rather than a true overlay. Native fullscreen. If full overlays are needed later, add hole-punching (Windows `SetWindowRgn`) or a separate control surface as a contained enhancement.
+
+Fallback (kept behind the `PlayerService` boundary): if native embedding proves unreliable on a platform, render in a dedicated borderless native video window that is positioned over the app and controlled through the same `PlayerService` API. The rest of the app does not change.
 
 Keyboard bindings (Netflix-like):
 
@@ -192,12 +198,12 @@ Keyboard bindings (Netflix-like):
 - N / B: next / previous episode. Shift+N / Shift+B: next / previous season.
 - S: cycle subtitle track. A: cycle audio track. C: toggle subtitles.
 - [ / ]: decrease / increase playback speed.
-- Click on the video toggles play/pause; the overlay hides after inactivity.
+- Click on the video toggles play/pause; the dock controls hide after inactivity.
 
 ## Cross-device and sync model
 
-- Local mode: plain SQLite file in the app data dir.
-- Remote mode: the same file opened as a Turso embedded replica using the stored URL and token. Reads/writes hit the local file; a sync runs on app start, on a timer, and after meaningful writes (add media, progress updates, link changes).
+- Local mode: plain SQLite-compatible file in the app data dir, opened with `turso::Builder::new_local()`.
+- Remote mode: the same file opened through `turso::sync` with the stored URL and token. All reads and writes stay local; `push()`/`pull()` exchange changes on app start, on a timer, and after meaningful writes (add media, progress updates, link changes).
 - Because `video_file` is scoped by `device_id`, syncing paths is safe: each device ignores other devices' paths.
 - Watch progress and metadata are global, so "Continue Watching" is consistent across machines.
 - Conflict handling for v1: last write wins per row; progress writes are frequent and small, and only one device is typically active at a time. Document this and revisit if real conflicts appear.
@@ -208,16 +214,16 @@ Each milestone produces something runnable and directly verifiable, and builds o
 
 ### M0 - React app shell
 
-- Outcome: `npm run tauri dev` opens a window with the Netflix-like layout shell (sidebar/top bar, routes for Library, Media, Settings), styled with tokens and BEM.
-- Implementation: add React, React Router, TanStack Query, Zustand; convert `main.ts` to `main.tsx`; set up `styles/tokens.css` and base styles; placeholder screens.
-- Verify: run the app, navigate routes, inspect layout and tokens.
+- Outcome: `npm run tauri dev` opens a window with the Netflix-like layout shell (sidebar/top bar, routes for Library, Media, Settings), styled with Tailwind + shadcn/ui.
+- Implementation: add React, React Router, TanStack Query, Zustand; convert `main.ts` to `main.tsx`; set up Tailwind v4 (Vite plugin), shadcn theme tokens, and the `@/*` alias; init a few shadcn components; placeholder screens.
+- Verify: run the app, navigate routes, inspect layout and theme tokens.
 - Deferred: any real data or backend calls.
 
 ### M1 - First-run database mode + local SQLite
 
-- Outcome: on first launch the app asks "Local or Remote?" Choosing Local creates a SQLite file, runs migrations, and remembers the choice across restarts. Settings shows the DB path and schema version.
-- Implementation: local config + device identity; `libsql` connection; migration runner; a health command; setup UI.
-- Verify: choose Local, restart, confirm no prompt and correct DB path/version.
+- Outcome: on first launch the app asks "Local or Remote?" Choosing Local creates a SQLite file, runs migrations, and remembers the choice across restarts; Local never asks for a Turso URL or token. Choosing Remote instead prompts for the Turso URL and auth token. Settings shows the DB path and schema version.
+- Implementation: local config + device identity; `turso` local connection; migration runner; a health command; setup UI (Turso fields shown only for Remote).
+- Verify: choose Local, restart, confirm no prompt, no Turso fields requested, and correct DB path/version.
 - Deferred: Turso, real tables beyond migrations, secrets handling beyond file storage.
 
 ### M2 - Add first media via TMDB
@@ -248,13 +254,13 @@ Each milestone produces something runnable and directly verifiable, and builds o
 - Verify: run against `/Users/hadi/TV Shows/Dark.Matter.2024.S01.COMPLETE.720p.ATVP.WEBRip.x264-GalaxyTV[TGx]`, confirm 9 episodes linked and non-video files ignored.
 - Deferred: fuzzy/numbered fallback matching, multi-episode files beyond flagging, subtitles.
 
-### M6 - Embedded mpv playback (highest-risk spike)
+### M6 - Embedded libVLC playback (highest-risk spike)
 
-- Outcome: clicking a linked movie or episode plays it inside the app, with overlay controls and the keyboard bindings working.
-- Implementation: bundle mpv sidecar; `PlayerService` (spawn, IPC, window-id embedding); `play_video`/`player_command`/`get_player_state`; player overlay UI; verify on macOS first, then Windows/Linux.
-- Verify: play an mkv (not just mp4), toggle fullscreen, seek, adjust volume, select audio/subtitle tracks, watch it render embedded.
+- Outcome: clicking a linked movie or episode plays it inside the app, with the control dock and the keyboard bindings working.
+- Implementation (spike first): bundle libVLC + plugins; `PlayerService` FFI wrapper; embed with `set_hwnd`/`set_nsobject`/`set_xwindow`; `play_video`/`player_command`/`get_player_state`; control dock UI. Validate embedding on macOS, Windows, and Linux (X11/XWayland) before building the dock UI.
+- Verify: play an mkv (not just mp4), toggle fullscreen, seek, adjust volume, select audio/subtitle tracks, watch it render embedded on each target OS.
 - Deferred: resume persistence, next-episode auto-advance, subtitle sidecar UI polish.
-- Risk note: if window-id embedding is unreliable, switch `PlayerService` to the separate-window fallback and continue; the app-facing API does not change.
+- Risk note: if native embedding is unreliable on a platform, switch `PlayerService` to the borderless separate-window fallback and continue; the app-facing API does not change.
 
 ### M7 - Resume and watched tracking
 
@@ -266,13 +272,13 @@ Each milestone produces something runnable and directly verifiable, and builds o
 ### M8 - Turso remote database + sync
 
 - Outcome: Settings accepts a Turso URL and token, switches to Remote, syncs, and the same metadata/progress appear on a second machine while each machine keeps its own file links.
-- Implementation: embedded replica connect; `sync_now`/`get_sync_status`; sync on start/timer/after writes; sync status in the UI; connection test.
+- Implementation: `turso::sync` connect + `push()`/`pull()`; `sync_now`/`get_sync_status`; sync on start/timer/after writes; sync status in the UI; connection test. Use the local sync server (`tursodb <file> --sync-server`) for development and verification without a cloud account.
 - Verify: add media and progress on device A, sync, pull on device B, confirm metadata/progress appear and device B's own links are shown as unlinked for A's paths.
 - Deferred: conflict resolution beyond last-write-wins, background sync daemon.
 
 ### M9 - Dashboard and library polish
 
-- Outcome: Netflix-like dashboard with Continue Watching, Recently Added, and All Movies / All Shows rows; search and basic filters; polished player overlay; keybindings help overlay.
+- Outcome: Netflix-like dashboard with Continue Watching, Recently Added, and All Movies / All Shows rows; search and basic filters; polished player dock; keybindings help overlay.
 - Implementation: layout/visual refinement, loading/empty/error states, keyboard help, responsive sizing.
 - Verify: navigate the whole app, confirm states render correctly with empty and populated data.
 - Deferred: performance work on very large libraries.
@@ -280,14 +286,14 @@ Each milestone produces something runnable and directly verifiable, and builds o
 ### M10 - Subtitles, tracks, and media polish
 
 - Outcome: embedded subtitles and external `.srt`/`.ass` sidecars auto-load and are selectable; audio track selection; remembered language preferences.
-- Implementation: mpv `--sub-auto=fuzzy`, track-list parsing, track selection commands, subtitle/audio menus in the overlay.
+- Implementation: libVLC subtitle/audio track selection and `sub-file` autodetect for sidecars, track-list enumeration, subtitle/audio menus in the control dock.
 - Verify: play a file with embedded subs and one with an external `.srt`, switch tracks, confirm persistence of preference.
-- Deferred: subtitle download/search, styling/theming of subtitles beyond mpv defaults.
+- Deferred: subtitle download/search, styling/theming of subtitles beyond libVLC defaults.
 
 ### M11 - Cross-platform packaging and hardening
 
-- Outcome: installable builds for macOS, Windows, and Linux that include mpv and start clean; secrets safe; graceful errors.
-- Implementation: configure `externalBin` and per-platform mpv binaries; icons; macOS signing/notarization notes; error and empty-state coverage; edge cases (missing file, moved file, duplicate scan, corrupt media).
+- Outcome: installable builds for macOS, Windows, and Linux that include libVLC and start clean; secrets safe; graceful errors.
+- Implementation: bundle per-platform libVLC shared libraries + plugins and set the plugin path; icons; macOS signing/notarization notes (including the libVLC libraries); error and empty-state coverage; edge cases (missing file, moved file, duplicate scan, corrupt media).
 - Verify: install and run on each target OS; link and play a file with a native path on each.
 - Deferred: auto-update, crash reporting, telemetry.
 
@@ -301,9 +307,9 @@ Each milestone produces something runnable and directly verifiable, and builds o
 
 ## Risks and mitigations
 
-- mpv embedding on macOS/Windows/Linux webviews is the main technical risk. Mitigate with an early spike (M6), a `PlayerService` boundary, and a documented separate-window fallback.
-- Bundling mpv: mpv is GPL. Bundling is the chosen approach, so the app must comply with mpv's GPL terms (source and notice obligations for the combined distribution), and code signing/notarization must cover the sidecar. Add license notices and the compliance checklist during M11.
-- Turso embedded replica conflicts and sync timing. Mitigate with device-scoped paths, global-but-small progress rows, last-write-wins, and a visible sync status.
+- Native player embedding on macOS/Windows/Linux webviews is the main technical risk. libVLC supports the embed API on all three, but compositing with the webview still needs validation. Mitigate with an early spike (M6), a `PlayerService` boundary, the keyboard-first control dock instead of HTML overlays, and a documented borderless-window fallback.
+- Bundling libVLC: libVLC is LGPL v2.1+. Keep it dynamically linked, ship the shared libraries and plugins, provide license notices, and allow relinking as required. Code signing/notarization must cover the libVLC libraries. Add the compliance checklist during M11.
+- Turso sync timing and conflicts. Mitigate with device-scoped paths, global-but-small progress rows, last-write-wins, a visible sync status, and the `turso` crate's push/pull model. The `turso` crate is pre-1.0, so pin versions and keep it behind the repositories.
 - TMDB key and rate limits. User-supplied key, backend-only usage, local caching, and attribution text.
 - Filename variety (specials, anime numbering, `1x01`, multi-episode files). Start with the specified patterns, flag uncertain matches for manual confirmation, and expand only with real cases.
 - Cross-platform path handling. Always treat paths as opaque device-local strings; never derive one device's path from another's.
@@ -320,6 +326,8 @@ Each milestone produces something runnable and directly verifiable, and builds o
 
 ## Resolved decisions
 
-- mpv: bundle it in packaged releases and accept GPL obligations (source/notice compliance handled in M11).
+- Player: use libVLC (dynamically linked, LGPL) with per-OS native embedding; keep it behind `PlayerService` with a borderless-window fallback.
+- Frontend styling: Tailwind CSS v4 + shadcn/ui, replacing CSS Modules/BEM.
+- Database: the `turso` crate for both local SQLite and optional Turso sync (`push`/`pull`), replacing `libsql` embedded replicas.
 - Progress: global, one value per movie/episode, shared across devices.
 - Filename matching: auto-link `SxxExx` and `NxNN`; bare numbers and season-folder-only files require confirmation in the scan preview.
