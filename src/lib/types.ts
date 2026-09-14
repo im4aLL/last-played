@@ -25,6 +25,22 @@ export type MediaItem = {
   progress: WatchProgress | null;
 };
 
+export type MediaTypeFilter = "all" | "movie" | "tv";
+export type WatchFilter = "all" | "unwatched" | "in-progress" | "watched";
+export type LibrarySort = "recent" | "title";
+
+export type LibraryFilter = {
+  query: string;
+  type: MediaTypeFilter;
+  watch: WatchFilter;
+  sort: LibrarySort;
+};
+
+export type MediaPage = {
+  items: MediaItem[];
+  total: number;
+};
+
 export type Episode = {
   id: string;
   episodeNumber: number;

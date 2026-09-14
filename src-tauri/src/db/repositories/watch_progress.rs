@@ -68,23 +68,6 @@ pub async fn upsert(conn: &Connection, progress: &WatchProgress) -> Result<()> {
     Ok(())
 }
 
-pub async fn list_all(conn: &Connection) -> Result<Vec<WatchProgress>> {
-    let mut rows = conn
-        .query(
-            &format!("SELECT {COLUMNS} FROM watch_progress ORDER BY updated_at DESC"),
-            (),
-        )
-        .await
-        .map_err(AppError::from)?;
-
-    let mut items = Vec::new();
-    while let Some(row) = rows.next().await.map_err(AppError::from)? {
-        items.push(from_row(&row)?);
-    }
-
-    Ok(items)
-}
-
 pub async fn list_for_media(conn: &Connection, media_item_id: &str) -> Result<Vec<WatchProgress>> {
     let mut rows = conn
         .query(

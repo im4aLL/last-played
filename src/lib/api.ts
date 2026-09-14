@@ -9,8 +9,10 @@ import type {
 import type {
   AddedMedia,
   AppliedScan,
+  LibraryFilter,
   MediaDetail,
   MediaItem,
+  MediaPage,
   MediaPreview,
   MediaType,
   ScanMatchInput,
@@ -82,8 +84,12 @@ export function refreshMetadata(mediaId: string): Promise<AddedMedia> {
   return invoke<AddedMedia>("refresh_metadata", { mediaId });
 }
 
-export function listMedia(): Promise<MediaItem[]> {
-  return invoke<MediaItem[]>("list_media");
+export function listMedia(input: {
+  filter: LibraryFilter;
+  limit: number;
+  offset: number;
+}): Promise<MediaPage> {
+  return invoke<MediaPage>("list_media", input);
 }
 
 export function getMedia(mediaId: string): Promise<MediaDetail> {

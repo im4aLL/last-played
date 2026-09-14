@@ -34,13 +34,13 @@ export default function PlayerHud({
   const Icon = FEEDBACK_ICONS[feedback.kind];
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+    <div className="pointer-events-none absolute inset-0 z-30 flex items-start justify-end p-4 md:p-6">
       <div
         key={feedback.id}
-        className="flex flex-col items-center gap-2 rounded-2xl bg-black/60 px-8 py-6 text-white shadow-lg backdrop-blur-sm animate-in fade-in zoom-in-95 duration-150"
+        className="flex flex-col items-center gap-1 rounded-xl bg-black/60 px-4 py-3 text-white shadow-lg backdrop-blur-sm animate-in fade-in zoom-in-95 duration-150"
       >
-        <Icon className="size-10" />
-        <span className="text-lg font-medium tabular-nums">
+        <Icon className="size-6" />
+        <span className="text-sm font-medium tabular-nums">
           {feedback.label}
         </span>
       </div>

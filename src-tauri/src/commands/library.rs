@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::commands::linking::VideoFileInfo;
 use crate::db::repositories::{
-    episode as episode_repo, media_item as media_repo, season as season_repo,
-    video_file as video_file_repo, watch_progress as watch_repo,
+    episode as episode_repo,
+    media_item::{
+        self as media_repo, LibraryQuery, LibrarySort, MediaTypeFilter, WatchFilter,
+    },
+    season as season_repo, video_file as video_file_repo, watch_progress as watch_repo,
 };
 use crate::domain::{Episode, MediaItem, MediaType, VideoFile, WatchProgress};
 use crate::error::{AppError, Result};
@@ -23,6 +26,40 @@ pub struct MediaSummary {
     pub year: Option<i64>,
     pub poster_url: Option<String>,
     pub progress: Option<WatchProgress>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaPage {
+    pub items: Vec<MediaSummary>,
+    pub total: i64,
+}
+
+/// Raw filter payload from the UI. Empty strings fall back to the "all" /
+/// "recent" defaults so partially specified filters stay valid.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryFilterInput {
+    #[serde(default)]
+    pub query: String,
+    #[serde(default, rename = "type")]
+    pub media_type: String,
+    #[serde(default)]
+    pub watch: String,
+    #[serde(default)]
+    pub sort: String,
+}
+
+impl LibraryFilterInput {
+    fn into_query(self) -> Result<LibraryQuery> {
+        let search = self.query.trim();
+        Ok(LibraryQuery {
+            search: (!search.is_empty()).then(|| search.to_string()),
+            media_type: MediaTypeFilter::parse(&self.media_type)?,
+            watch: WatchFilter::parse(&self.watch)?,
+            sort: LibrarySort::parse(&self.sort)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -133,28 +170,28 @@ fn progress_for_media(rows: &[WatchProgress], item: &MediaItem) -> Option<WatchP
     }
 }
 
+const MAX_PAGE_SIZE: i64 = 200;
+
 #[tauri::command]
-pub async fn list_media(state: State<'_, AppState>) -> Result<Vec<MediaSummary>> {
+pub async fn list_media(
+    state: State<'_, AppState>,
+    filter: LibraryFilterInput,
+    limit: i64,
+    offset: i64,
+) -> Result<MediaPage> {
     let connection = state.database().await?.connect().await?;
-    let items = media_repo::list_all(&connection).await?;
-    let progress = watch_repo::list_all(&connection).await?;
+    let query = filter.into_query()?;
+    let limit = limit.clamp(1, MAX_PAGE_SIZE);
+    let offset = offset.max(0);
 
-    let mut by_media: HashMap<String, Vec<WatchProgress>> = HashMap::new();
-    for row in progress {
-        by_media
-            .entry(row.media_item_id.clone())
-            .or_default()
-            .push(row);
-    }
+    let (rows, total) = media_repo::list_page(&connection, &query, limit, offset).await?;
 
-    Ok(items
+    let items = rows
         .into_iter()
-        .map(|item| {
-            let rows = by_media.remove(&item.id).unwrap_or_default();
-            let progress = progress_for_media(&rows, &item);
-            summary_from(item, progress)
-        })
-        .collect())
+        .map(|row| summary_from(row.item, row.progress))
+        .collect();
+
+    Ok(MediaPage { items, total })
 }
 
 #[tauri::command]

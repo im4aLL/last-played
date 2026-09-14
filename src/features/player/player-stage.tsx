@@ -85,23 +85,13 @@ export default function PlayerStage({
     navigate(-1);
   }, [exitFullscreen, navigate]);
 
-  // The player opens fullscreen on entry and restores windowed mode on exit.
-  // Setup and teardown live in one effect and the enter defers a microtask so
-  // React's development-only StrictMode remount settles in fullscreen instead
-  // of entering then immediately exiting.
+  // The player no longer enters fullscreen automatically. Restore windowed
+  // mode if the user had toggled fullscreen before leaving the player.
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      await Promise.resolve();
-      if (cancelled) return;
-      await enterFullscreen();
-    })();
-
     return () => {
-      cancelled = true;
       void exitFullscreen();
     };
-  }, [enterFullscreen, exitFullscreen]);
+  }, [exitFullscreen]);
 
   useEffect(() => {
     const element = containerRef.current;

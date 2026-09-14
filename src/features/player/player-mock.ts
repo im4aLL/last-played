@@ -19,6 +19,8 @@ export type PlaybackItem = {
   backdropUrl: string | null;
   filePath: string | null;
   startPositionSeconds: number;
+  positionSeconds: number;
+  watched: boolean;
 };
 
 export type PlaybackSeason = {
@@ -77,6 +79,8 @@ function movieItem(detail: MediaDetail): PlaybackItem {
     backdropUrl: detail.backdropUrl,
     filePath: detail.videoFile?.path ?? null,
     startPositionSeconds: startPositionFor(detail.progress),
+    positionSeconds: detail.progress?.positionSeconds ?? 0,
+    watched: detail.progress?.watched ?? false,
   };
 }
 
@@ -98,6 +102,8 @@ function episodeItem(
     backdropUrl: detail.backdropUrl,
     filePath: episode.videoFile?.path ?? null,
     startPositionSeconds: startPositionFor(episode.progress),
+    positionSeconds: episode.progress?.positionSeconds ?? 0,
+    watched: episode.progress?.watched ?? false,
   };
 }
 

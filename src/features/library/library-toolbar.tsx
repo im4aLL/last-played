@@ -11,12 +11,14 @@ import {
 import {
   DEFAULT_FILTER,
   isDefaultFilter,
-  type LibraryFilter,
-  type LibrarySort,
-  type MediaTypeFilter,
-  type WatchFilter,
 } from "@/features/library/use-library";
 import { formatCount } from "@/lib/format";
+import type {
+  LibraryFilter,
+  LibrarySort,
+  MediaTypeFilter,
+  WatchFilter,
+} from "@/lib/types";
 
 type LibraryToolbarProps = {
   filter: LibraryFilter;

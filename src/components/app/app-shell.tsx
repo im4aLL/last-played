@@ -5,7 +5,14 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
+import {
+  Link,
+  Navigate,
+  NavLink,
+  Outlet,
+  useLocation,
+  useMatch,
+} from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -24,7 +31,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import SyncIndicator from "@/features/sync/sync-indicator";
-import { useSystemTheme } from "@/hooks/use-system-theme";
+import ThemeToggle from "@/components/app/theme-toggle";
+import { useMedia } from "@/features/media/use-media";
 import { useAppConfig } from "@/lib/app-config";
 
 type NavItem = {
@@ -40,10 +48,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
-function sectionTitle(pathname: string) {
+function sectionTitle(pathname: string, mediaTitle: string | null) {
   if (pathname.startsWith("/settings")) return "Settings";
   if (pathname.startsWith("/add")) return "Add media";
-  if (pathname.startsWith("/media")) return "Media";
+  if (pathname.startsWith("/media")) return mediaTitle ?? "Media";
   if (pathname.startsWith("/player")) return "Player";
   return "Library";
 }
@@ -68,9 +76,10 @@ function SidebarNavItem({ item }: { item: NavItem }) {
 }
 
 export default function AppShell() {
-  useSystemTheme();
   const { pathname } = useLocation();
   const dbMode = useAppConfig((state) => state.dbMode);
+  const mediaId = useMatch("/media/:id")?.params.id ?? "";
+  const { detail } = useMedia(mediaId);
 
   if (dbMode === null) {
     return <Navigate to="/setup" replace />;
@@ -78,7 +87,7 @@ export default function AppShell() {
 
   return (
     <TooltipProvider>
-      <SidebarProvider className="h-svh overflow-hidden">
+      <SidebarProvider defaultOpen={false} className="h-svh overflow-hidden">
         <Sidebar collapsible="icon">
           <SidebarHeader>
             <SidebarMenu>
@@ -126,9 +135,10 @@ export default function AppShell() {
               className="data-[orientation=vertical]:h-4 data-[orientation=vertical]:self-center"
             />
             <h1 className="font-heading text-sm font-medium">
-              {sectionTitle(pathname)}
+              {sectionTitle(pathname, detail?.title ?? null)}
             </h1>
             <div className="ml-auto flex items-center gap-1">
+              <ThemeToggle />
               <SyncIndicator />
             </div>
           </header>

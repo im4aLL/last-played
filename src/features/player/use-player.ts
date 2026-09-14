@@ -81,6 +81,7 @@ export type PlayerCommands = {
   toggleSubtitles: () => void;
   next: () => void;
   previous: () => void;
+  playItem: (itemId: string) => void;
   nextSeason: () => void;
   previousSeason: () => void;
   setFullscreen: (fullscreen: boolean) => void;
@@ -560,6 +561,11 @@ export function usePlayer(
           return;
         }
         switchTo(stepIndex(playlist, currentIndex, -1));
+      },
+      playItem: (itemId) => {
+        if (!playlist) return;
+        const index = playlist.items.findIndex((item) => item.id === itemId);
+        if (index >= 0 && index !== currentIndex) switchTo(index);
       },
       nextSeason: () => {
         if (!playlist) return;

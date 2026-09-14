@@ -1,33 +1,28 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { continueWatching, listMedia } from "@/lib/api";
 import { toError } from "@/lib/errors";
-import type { MediaItem } from "@/lib/types";
+import type { LibraryFilter, MediaItem } from "@/lib/types";
 
 export type LibraryStatus = "loading" | "error" | "ready";
 
-export type LibraryRow = {
-  id: string;
-  title: string;
-  items: MediaItem[];
-};
-
-export type LibraryData = {
+export type MediaListState = {
   status: LibraryStatus;
   items: MediaItem[];
-  continueWatching: MediaItem[];
+  total: number;
+  hasMore: boolean;
+  loadingMore: boolean;
   error: Error | null;
+  loadMore: () => void;
   reload: () => void;
 };
 
-export type MediaTypeFilter = "all" | "movie" | "tv";
-export type WatchFilter = "all" | "unwatched" | "in-progress" | "watched";
-export type LibrarySort = "recent" | "title";
-
-export type LibraryFilter = {
-  query: string;
-  type: MediaTypeFilter;
-  watch: WatchFilter;
-  sort: LibrarySort;
+export type LibraryData = {
+  continueWatching: MediaListState;
+  recentlyAdded: MediaListState;
+  movies: MediaListState;
+  shows: MediaListState;
+  reload: () => void;
 };
 
 export const DEFAULT_FILTER: LibraryFilter = {
@@ -38,34 +33,8 @@ export const DEFAULT_FILTER: LibraryFilter = {
 };
 
 const RECENTLY_ADDED_LIMIT = 12;
-
-export function buildDashboardRows(
-  continueItems: MediaItem[],
-  items: MediaItem[],
-): LibraryRow[] {
-  return [
-    {
-      id: "continue-watching",
-      title: "Continue Watching",
-      items: continueItems,
-    },
-    {
-      id: "recently-added",
-      title: "Recently Added",
-      items: items.slice(0, RECENTLY_ADDED_LIMIT),
-    },
-    {
-      id: "movies",
-      title: "All Movies",
-      items: items.filter((item) => item.type === "movie"),
-    },
-    {
-      id: "shows",
-      title: "All Shows",
-      items: items.filter((item) => item.type === "tv"),
-    },
-  ];
-}
+export const ROW_PAGE_SIZE = 24;
+export const GRID_PAGE_SIZE = 30;
 
 export function isDefaultFilter(filter: LibraryFilter): boolean {
   return (
@@ -75,73 +44,106 @@ export function isDefaultFilter(filter: LibraryFilter): boolean {
   );
 }
 
-function matchesWatch(item: MediaItem, watch: WatchFilter): boolean {
-  const progress = item.progress;
-  switch (watch) {
-    case "all":
-      return true;
-    case "watched":
-      return progress?.watched ?? false;
-    case "in-progress":
-      return Boolean(
-        progress && !progress.watched && progress.positionSeconds > 0,
-      );
-    case "unwatched":
-      return !progress || (!progress.watched && progress.positionSeconds <= 0);
-  }
+function errorFrom(error: unknown): Error | null {
+  return error == null ? null : toError(error);
 }
 
 /**
- * Filters and sorts in-memory. The incoming list is already ordered by
- * recently added, so the "recent" sort preserves the original order.
+ * Paginated, server-filtered media list. The backend owns filtering, sorting,
+ * and paging, so `total` counts every match, not just the loaded pages.
  */
-export function filterLibraryItems(
-  items: MediaItem[],
+export function useMediaList(
   filter: LibraryFilter,
-): MediaItem[] {
-  const query = filter.query.trim().toLowerCase();
-  const matched = items.filter((item) => {
-    if (filter.type !== "all" && item.type !== filter.type) return false;
-    if (!matchesWatch(item, filter.watch)) return false;
-    if (query && !item.title.toLowerCase().includes(query)) return false;
-    return true;
+  pageSize: number,
+  enabled = true,
+): MediaListState {
+  const normalized: LibraryFilter = { ...filter, query: filter.query.trim() };
+  const query = useInfiniteQuery({
+    queryKey: ["media", "list", normalized, pageSize],
+    enabled,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      listMedia({ filter: normalized, limit: pageSize, offset: pageParam }),
+    getNextPageParam: (lastPage, allPages) => {
+      if (lastPage.items.length === 0) return undefined;
+      const loaded = allPages.reduce(
+        (count, page) => count + page.items.length,
+        0,
+      );
+      return loaded < lastPage.total ? loaded : undefined;
+    },
   });
 
-  if (filter.sort === "title") {
-    return [...matched].sort((a, b) =>
-      a.title.localeCompare(b.title, undefined, { sensitivity: "base" }),
-    );
-  }
-  return matched;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = query;
+
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  return {
+    status: query.isPending ? "loading" : query.isError ? "error" : "ready",
+    items: query.data?.pages.flatMap((page) => page.items) ?? [],
+    total: query.data?.pages[0]?.total ?? 0,
+    hasMore: hasNextPage,
+    loadingMore: isFetchingNextPage,
+    error: errorFrom(query.error),
+    loadMore,
+    reload: () => {
+      void refetch();
+    },
+  };
 }
 
-export function useLibrary(): LibraryData {
+function useContinueWatching(): MediaListState {
   const query = useQuery({
-    queryKey: ["media", "list"],
-    queryFn: listMedia,
-  });
-  const continueQuery = useQuery({
     queryKey: ["media", "continue-watching"],
     queryFn: continueWatching,
   });
 
-  const status: LibraryStatus =
-    query.isPending || continueQuery.isPending
-      ? "loading"
-      : query.isError || continueQuery.isError
-        ? "error"
-        : "ready";
-
-  const rawError = query.error ?? continueQuery.error;
-
   return {
-    status,
+    status: query.isPending ? "loading" : query.isError ? "error" : "ready",
     items: query.data ?? [],
-    continueWatching: continueQuery.data ?? [],
-    error: rawError == null ? null : toError(rawError),
+    total: query.data?.length ?? 0,
+    hasMore: false,
+    loadingMore: false,
+    error: errorFrom(query.error),
+    loadMore: () => {},
     reload: () => {
       void query.refetch();
-      void continueQuery.refetch();
+    },
+  };
+}
+
+export function useLibrary(enabled = true): LibraryData {
+  const continueWatching = useContinueWatching();
+  const recentlyAdded = useMediaList(
+    DEFAULT_FILTER,
+    RECENTLY_ADDED_LIMIT,
+    enabled,
+  );
+  const movies = useMediaList(
+    { ...DEFAULT_FILTER, type: "movie" },
+    ROW_PAGE_SIZE,
+    enabled,
+  );
+  const shows = useMediaList(
+    { ...DEFAULT_FILTER, type: "tv" },
+    ROW_PAGE_SIZE,
+    enabled,
+  );
+
+  return {
+    continueWatching,
+    recentlyAdded,
+    movies,
+    shows,
+    reload: () => {
+      continueWatching.reload();
+      recentlyAdded.reload();
+      movies.reload();
+      shows.reload();
     },
   };
 }

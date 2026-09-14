@@ -11,6 +11,7 @@ import PlayerPage from "@/features/player/player-page";
 import SettingsPage from "@/features/settings/settings-page";
 import SetupPage from "@/features/setup/setup-page";
 import { useAppConfig } from "@/lib/app-config";
+import { useThemeEffect } from "@/hooks/use-theme";
 
 const router = createBrowserRouter([
   {
@@ -44,6 +45,7 @@ function AppLoading() {
 }
 
 export default function App() {
+  useThemeEffect();
   const loaded = useAppConfig((state) => state.loaded);
   const load = useAppConfig((state) => state.load);
   const [queryClient] = useState(

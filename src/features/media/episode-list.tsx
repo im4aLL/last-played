@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import EmptyState from "@/components/app/empty-state";
 import { Progress } from "@/components/ui/progress";
 import EpisodeStatus from "@/features/media/episode-status";
+import { cn } from "cn";
 import { formatAirDate, formatRuntime } from "@/lib/format";
 import { posterHue } from "@/lib/poster";
 import { progressRatio, type Episode } from "@/lib/types";
@@ -25,6 +26,7 @@ function EpisodeRow({
   const hue = posterHue(episode.name);
   const showProgress = ratio != null && ratio > 0;
   const resumable = showProgress && !episode.progress?.watched;
+  const watched = episode.progress?.watched ?? false;
 
   return (
     <li className="flex flex-col gap-2 py-4 sm:flex-row sm:items-start sm:gap-4">
@@ -34,11 +36,14 @@ function EpisodeRow({
             src={episode.stillUrl}
             alt=""
             loading="lazy"
-            className="size-full object-cover"
+            className={cn("size-full object-cover", watched && "opacity-50")}
           />
         ) : (
           <div
-            className="flex size-full items-center justify-center"
+            className={cn(
+              "flex size-full items-center justify-center",
+              watched && "opacity-50",
+            )}
             style={{
               backgroundImage: `linear-gradient(140deg, hsl(${hue} 40% 32%), hsl(${(hue + 48) % 360} 50% 16%))`,
             }}
@@ -69,7 +74,7 @@ function EpisodeRow({
         )}
       </div>
 
-      <div className="min-w-0 flex-1 space-y-1">
+      <div className={cn("min-w-0 flex-1 space-y-1", watched && "opacity-50")}>
         <div className="flex items-baseline gap-2">
           <span className="shrink-0 text-xs font-medium text-muted-foreground tabular-nums">
             E{String(episode.episodeNumber).padStart(2, "0")}

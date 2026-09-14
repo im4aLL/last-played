@@ -21,6 +21,9 @@ type MediaRowProps = {
   emptyMessage?: string;
   emptyIcon?: LucideIcon;
   onRetry?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 };
 
 const SKELETON_COUNT = 6;
@@ -33,6 +36,9 @@ export default function MediaRow({
   emptyMessage,
   emptyIcon,
   onRetry,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
 }: MediaRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
@@ -41,11 +47,13 @@ export default function MediaRow({
   const updateScrollState = useCallback(() => {
     const element = scrollRef.current;
     if (!element) return;
-    setAtStart(element.scrollLeft <= 1);
-    setAtEnd(
-      element.scrollLeft + element.clientWidth >= element.scrollWidth - 1,
-    );
-  }, []);
+    const start = element.scrollLeft <= 1;
+    const end =
+      element.scrollLeft + element.clientWidth >= element.scrollWidth - 1;
+    setAtStart(start);
+    setAtEnd(end);
+    if (end && hasMore && !loadingMore) onLoadMore?.();
+  }, [hasMore, loadingMore, onLoadMore]);
 
   useEffect(() => {
     updateScrollState();
@@ -150,6 +158,10 @@ export default function MediaRow({
                 />
               </Link>
             ))}
+            {loadingMore &&
+              Array.from({ length: 3 }, (_, index) => (
+                <PosterCardSkeleton key={`loading-${index}`} />
+              ))}
           </div>
         )}
       </div>

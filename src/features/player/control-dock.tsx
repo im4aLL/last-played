@@ -2,6 +2,7 @@ import {
   Check,
   ChevronDown,
   Keyboard,
+  ListVideo,
   Maximize,
   Minimize,
   Pause,
@@ -15,13 +16,23 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
-import type { ReactNode } from "react";
+import { useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { formatTimecode } from "@/lib/format";
-import { SUBTITLE_OFF } from "@/features/player/player-mock";
+import { formatRuntime, formatTimecode } from "@/lib/format";
+import {
+  SUBTITLE_OFF,
+  type PlaybackPlaylist,
+} from "@/features/player/player-mock";
 import {
   SEEK_STEP_SECONDS,
   type PlayerController,
@@ -59,7 +70,7 @@ function DockButton({
   );
 }
 
-type DockMenu = "audio" | "subtitle" | "speed";
+type DockMenu = "audio" | "subtitle" | "speed" | "episodes";
 
 function DockMenuButton({
   label,
@@ -123,17 +134,192 @@ function MenuOption({
 
 function MenuPanel({
   title,
+  className,
   children,
 }: {
   title: string;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-white/10 bg-neutral-900/95 p-1.5">
+    <div
+      className={cn(
+        "w-56 rounded-md border border-white/10 bg-neutral-900/95 p-1.5",
+        className,
+      )}
+    >
       <p className="px-2 py-1 text-xs font-medium tracking-wide text-white/40 uppercase">
         {title}
       </p>
       <div className="grid max-h-48 gap-0.5 overflow-y-auto">{children}</div>
+    </div>
+  );
+}
+
+function EpisodesPanel({
+  playlist,
+  currentId,
+  onSelect,
+  className,
+}: {
+  playlist: PlaybackPlaylist;
+  currentId: string;
+  onSelect: (itemId: string) => void;
+  className?: string;
+}) {
+  const currentSeasonIndex = playlist.seasons.findIndex((season) =>
+    season.items.some((item) => item.id === currentId),
+  );
+  const [seasonIndex, setSeasonIndex] = useState(
+    currentSeasonIndex >= 0 ? currentSeasonIndex : 0,
+  );
+  const season = playlist.seasons[seasonIndex];
+
+  if (!season) return null;
+
+  return (
+    <div
+      className={cn(
+        "w-80 rounded-md border border-white/10 bg-neutral-900/95 p-2",
+        className,
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 px-1 pb-2">
+        <p className="text-xs font-medium tracking-wide text-white/40 uppercase">
+          Episodes
+        </p>
+        <Select
+          value={String(seasonIndex)}
+          onValueChange={(value) => setSeasonIndex(Number(value))}
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label="Select season"
+            className="border-white/20 bg-white/5 text-white [&_svg]:text-white/60"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {playlist.seasons.map((option, index) => (
+              <SelectItem key={option.seasonNumber} value={String(index)}>
+                {option.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid max-h-64 gap-0.5 overflow-y-auto">
+        {season.items.map((item) => {
+          const isCurrent = item.id === currentId;
+          const ratio =
+            item.durationSeconds > 0
+              ? Math.min(1, item.positionSeconds / item.durationSeconds)
+              : 0;
+          const progressValue = item.watched ? 1 : ratio;
+          const runtime =
+            item.durationSeconds > 0
+              ? formatRuntime(Math.round(item.durationSeconds / 60))
+              : null;
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              disabled={!item.filePath}
+              onClick={() => onSelect(item.id)}
+              className={cn(
+                "flex w-full flex-col gap-1.5 rounded px-2 py-1.5 text-left text-sm text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40",
+                isCurrent && "bg-white/10",
+              )}
+            >
+              <span className="flex w-full items-center justify-between gap-3">
+                <span className="truncate">
+                  {item.subtitle ?? `Episode ${item.episodeNumber}`}
+                </span>
+                <span className="flex shrink-0 items-center gap-1.5 text-xs text-white/50">
+                  {runtime ? <span>{runtime}</span> : null}
+                  {isCurrent ? (
+                    <Play className="size-3.5 fill-current text-white" />
+                  ) : null}
+                  {item.watched ? (
+                    <Check className="size-4 text-emerald-400" />
+                  ) : null}
+                </span>
+              </span>
+              {progressValue > 0 && (
+                <span className="block h-0.5 w-full overflow-hidden rounded-full bg-white/20">
+                  <span
+                    className={cn(
+                      "block h-full rounded-full",
+                      item.watched ? "bg-emerald-400" : "bg-white",
+                    )}
+                    style={{ width: `${progressValue * 100}%` }}
+                  />
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SeekBar({
+  positionSeconds,
+  durationSeconds,
+  onSeek,
+}: {
+  positionSeconds: number;
+  durationSeconds: number;
+  onSeek: (seconds: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<{ left: number; time: number } | null>(
+    null,
+  );
+  const seekMax = durationSeconds > 0 ? durationSeconds : 1;
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const container = containerRef.current;
+    const track = container?.querySelector('[data-slot="slider-track"]');
+    if (!container || !track) return;
+    const trackRect = track.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const ratio = Math.min(
+      1,
+      Math.max(0, (event.clientX - trackRect.left) / trackRect.width),
+    );
+    setHover({
+      left: event.clientX - containerRect.left,
+      time: ratio * seekMax,
+    });
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="group relative w-full"
+      onPointerMove={handlePointerMove}
+      onPointerLeave={() => setHover(null)}
+    >
+      <Slider
+        value={[positionSeconds]}
+        min={0}
+        max={seekMax}
+        step={1}
+        aria-label="Seek"
+        onValueChange={([value]) => onSeek(value)}
+        className="w-full py-2 [&_[data-slot=slider-range]]:bg-white [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-track]]:bg-white/20 [&_[data-slot=slider-track]]:transition-[height] group-hover:[&_[data-slot=slider-track]]:h-2"
+      />
+      {hover && (
+        <div
+          className="pointer-events-none absolute bottom-full z-30 mb-1 -translate-x-1/2 rounded bg-black/90 px-1.5 py-0.5 text-xs text-white tabular-nums shadow"
+          style={{ left: hover.left }}
+        >
+          {formatTimecode(hover.time)}
+        </div>
+      )}
     </div>
   );
 }
@@ -148,12 +334,13 @@ export default function ControlDock({
   onClose: () => void;
 }) {
   const { state, current, commands } = controller;
+  const playlist = controller.playlist;
   const [openMenu, setOpenMenu] = useState<DockMenu | null>(null);
 
   if (!current) return null;
 
+  const hasEpisodes = playlist != null && playlist.seasons.length > 0;
   const isPlaying = state.status === "playing";
-  const seekMax = state.durationSeconds > 0 ? state.durationSeconds : 1;
 
   const audioLabel =
     state.audioTracks.find((track) => track.id === state.audioTrackId)?.label ??
@@ -186,82 +373,14 @@ export default function ControlDock({
       onPointerMove={commands.notifyActivity}
     >
       <div className="flex w-full flex-col gap-2">
-        {openMenu === "audio" && (
-          <MenuPanel title="Audio track">
-            {state.audioTracks.length === 0 ? (
-              <p className="px-2 py-1.5 text-sm text-white/50">
-                No audio tracks reported yet.
-              </p>
-            ) : (
-              state.audioTracks.map((track) => (
-                <MenuOption
-                  key={track.id}
-                  selected={track.id === state.audioTrackId}
-                  onClick={() =>
-                    choose(() => commands.selectAudioTrack(track.id))
-                  }
-                >
-                  {track.label}
-                </MenuOption>
-              ))
-            )}
-          </MenuPanel>
-        )}
-
-        {openMenu === "subtitle" && (
-          <MenuPanel title="Subtitle track">
-            <MenuOption
-              selected={state.subtitleTrackId === SUBTITLE_OFF}
-              onClick={() =>
-                choose(() => commands.selectSubtitleTrack(SUBTITLE_OFF))
-              }
-            >
-              Off
-            </MenuOption>
-            {state.subtitleTracks
-              .filter((track) => track.id !== SUBTITLE_OFF)
-              .map((track) => (
-                <MenuOption
-                  key={track.id}
-                  selected={track.id === state.subtitleTrackId}
-                  onClick={() =>
-                    choose(() => commands.selectSubtitleTrack(track.id))
-                  }
-                >
-                  {track.label}
-                </MenuOption>
-              ))}
-          </MenuPanel>
-        )}
-
-        {openMenu === "speed" && (
-          <MenuPanel title="Playback speed">
-            {RATE_OPTIONS.map((rate) => (
-              <MenuOption
-                key={rate}
-                selected={rate === state.rate}
-                onClick={() => choose(() => commands.setRate(rate))}
-              >
-                {rate}x
-              </MenuOption>
-            ))}
-          </MenuPanel>
-        )}
-
-        <div className="flex w-full flex-col gap-2">
-          <Slider
-            value={[state.positionSeconds]}
-            min={0}
-            max={seekMax}
-            step={1}
-            aria-label="Seek"
-            onValueChange={([value]) => commands.seekTo(value)}
-            className="w-full py-2 [&_[data-slot=slider-range]]:bg-white [&_[data-slot=slider-thumb]]:bg-white [&_[data-slot=slider-track]]:bg-white/20"
-          />
-          <div className="flex items-center justify-between text-xs text-white/60 tabular-nums">
-            <span>{formatTimecode(state.positionSeconds)}</span>
-            <span>{formatTimecode(state.durationSeconds)}</span>
-          </div>
+        <SeekBar
+          positionSeconds={state.positionSeconds}
+          durationSeconds={state.durationSeconds}
+          onSeek={commands.seekTo}
+        />
+        <div className="flex items-center justify-between text-xs text-white/60 tabular-nums">
+          <span>{formatTimecode(state.positionSeconds)}</span>
+          <span>{formatTimecode(state.durationSeconds)}</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -305,27 +424,101 @@ export default function ControlDock({
           </div>
 
           <div className="hidden items-center gap-1.5 lg:flex">
-            <DockMenuButton
-              label="Audio track"
-              value={audioLabel}
-              active={openMenu === "audio"}
-              onClick={() => toggleMenu("audio")}
-              className="w-36"
-            />
-            <DockMenuButton
-              label="Subtitle track"
-              value={subtitleLabel}
-              active={openMenu === "subtitle"}
-              onClick={() => toggleMenu("subtitle")}
-              className="w-36"
-            />
-            <DockMenuButton
-              label="Playback speed"
-              value={speedLabel}
-              active={openMenu === "speed"}
-              onClick={() => toggleMenu("speed")}
-              className="w-20"
-            />
+            <div className="relative">
+              <DockMenuButton
+                label="Audio track"
+                value={audioLabel}
+                active={openMenu === "audio"}
+                onClick={() => toggleMenu("audio")}
+                className="w-36"
+              />
+              {openMenu === "audio" && (
+                <MenuPanel
+                  title="Audio track"
+                  className="absolute right-0 bottom-full mb-2"
+                >
+                  {state.audioTracks.length === 0 ? (
+                    <p className="px-2 py-1.5 text-sm text-white/50">
+                      No audio tracks reported yet.
+                    </p>
+                  ) : (
+                    state.audioTracks.map((track) => (
+                      <MenuOption
+                        key={track.id}
+                        selected={track.id === state.audioTrackId}
+                        onClick={() =>
+                          choose(() => commands.selectAudioTrack(track.id))
+                        }
+                      >
+                        {track.label}
+                      </MenuOption>
+                    ))
+                  )}
+                </MenuPanel>
+              )}
+            </div>
+            <div className="relative">
+              <DockMenuButton
+                label="Subtitle track"
+                value={subtitleLabel}
+                active={openMenu === "subtitle"}
+                onClick={() => toggleMenu("subtitle")}
+                className="w-36"
+              />
+              {openMenu === "subtitle" && (
+                <MenuPanel
+                  title="Subtitle track"
+                  className="absolute right-0 bottom-full mb-2"
+                >
+                  <MenuOption
+                    selected={state.subtitleTrackId === SUBTITLE_OFF}
+                    onClick={() =>
+                      choose(() => commands.selectSubtitleTrack(SUBTITLE_OFF))
+                    }
+                  >
+                    Off
+                  </MenuOption>
+                  {state.subtitleTracks
+                    .filter((track) => track.id !== SUBTITLE_OFF)
+                    .map((track) => (
+                      <MenuOption
+                        key={track.id}
+                        selected={track.id === state.subtitleTrackId}
+                        onClick={() =>
+                          choose(() => commands.selectSubtitleTrack(track.id))
+                        }
+                      >
+                        {track.label}
+                      </MenuOption>
+                    ))}
+                </MenuPanel>
+              )}
+            </div>
+            <div className="relative">
+              <DockMenuButton
+                label="Playback speed"
+                value={speedLabel}
+                active={openMenu === "speed"}
+                onClick={() => toggleMenu("speed")}
+                className="w-20"
+              />
+              {openMenu === "speed" && (
+                <MenuPanel
+                  title="Playback speed"
+                  className="absolute right-0 bottom-full mb-2"
+                >
+                  {RATE_OPTIONS.map((rate) => (
+                    <MenuOption
+                      key={rate}
+                      selected={rate === state.rate}
+                      onClick={() => choose(() => commands.setRate(rate))}
+                    >
+                      {rate}x
+                    </MenuOption>
+                  ))}
+                </MenuPanel>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -346,6 +539,25 @@ export default function ControlDock({
             <span className="hidden w-9 text-right text-xs text-white/60 tabular-nums md:inline">
               {state.muted ? 0 : state.volume}%
             </span>
+            {hasEpisodes && (
+              <div className="relative">
+                <DockButton
+                  label="Episodes"
+                  icon={ListVideo}
+                  onClick={() => toggleMenu("episodes")}
+                />
+                {openMenu === "episodes" && playlist && (
+                  <EpisodesPanel
+                    playlist={playlist}
+                    currentId={current.id}
+                    className="absolute right-0 bottom-full mb-2"
+                    onSelect={(itemId) =>
+                      choose(() => commands.playItem(itemId))
+                    }
+                  />
+                )}
+              </div>
+            )}
             <DockButton
               label="Keyboard shortcuts"
               icon={Keyboard}
