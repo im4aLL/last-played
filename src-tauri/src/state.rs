@@ -121,9 +121,10 @@ impl AppState {
             return;
         }
 
+        let device_id = self.config().device_id;
         let sync = self.sync.clone();
         tauri::async_runtime::spawn(async move {
-            if let Err(error) = crate::services::sync::run(&database, &sync, true).await {
+            if let Err(error) = crate::services::sync::run(&database, &sync, &device_id).await {
                 eprintln!("background sync failed: {error}");
             }
         });

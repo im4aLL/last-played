@@ -1,18 +1,25 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use turso::{Builder, Connection, Database as TursoDatabase};
 
 use crate::error::{AppError, Result};
+use crate::services::remote::RemoteClient;
 
 pub mod migrations;
 pub mod repositories;
 
 pub const DB_FILE_NAME: &str = "library.db";
 
+/// A local SQLite-compatible database, plus an optional Turso HTTP client.
+///
+/// Both modes use the same local file so the app works offline. Remote mode
+/// adds a [`RemoteClient`] that [`crate::services::sync`] uses to reconcile
+/// rows with the remote database through the Turso HTTP API.
 #[derive(Clone)]
-pub enum Database {
-    Local(TursoDatabase),
-    Synced(turso::sync::Database),
+pub struct Database {
+    inner: TursoDatabase,
+    remote: Option<Arc<RemoteClient>>,
 }
 
 impl Database {
@@ -27,64 +34,32 @@ impl Database {
         let connection = inner.connect()?;
         migrations::run(&connection).await?;
 
-        Ok(Self::Local(inner))
+        Ok(Self {
+            inner,
+            remote: None,
+        })
     }
 
     pub async fn open_remote(path: &Path, url: &str, auth_token: &str) -> Result<Self> {
-        ensure_parent_dir(path)?;
+        let database = Self::open_local(path).await?;
+        let remote = RemoteClient::new(url, auth_token)?;
 
-        let mut builder =
-            turso::sync::Builder::new_remote(path.to_string_lossy().as_ref()).with_remote_url(url);
-        if !auth_token.trim().is_empty() {
-            builder = builder.with_auth_token(auth_token);
-        }
-
-        let inner = builder
-            .build()
-            .await
-            .map_err(|error| AppError::Database(error.to_string()))?;
-
-        let connection = inner
-            .connect()
-            .await
-            .map_err(|error| AppError::Database(error.to_string()))?;
-        migrations::run(&connection).await?;
-
-        Ok(Self::Synced(inner))
+        Ok(Self {
+            inner: database.inner,
+            remote: Some(Arc::new(remote)),
+        })
     }
 
     pub fn is_remote(&self) -> bool {
-        matches!(self, Self::Synced(_))
+        self.remote.is_some()
+    }
+
+    pub fn remote(&self) -> Option<&RemoteClient> {
+        self.remote.as_deref()
     }
 
     pub async fn connect(&self) -> Result<Connection> {
-        match self {
-            Self::Local(inner) => inner.connect().map_err(Into::into),
-            Self::Synced(inner) => inner
-                .connect()
-                .await
-                .map_err(|error| AppError::Database(error.to_string())),
-        }
-    }
-
-    pub async fn push(&self) -> Result<()> {
-        match self {
-            Self::Local(_) => Ok(()),
-            Self::Synced(inner) => inner
-                .push()
-                .await
-                .map_err(|error| AppError::Database(error.to_string())),
-        }
-    }
-
-    pub async fn pull(&self) -> Result<bool> {
-        match self {
-            Self::Local(_) => Ok(false),
-            Self::Synced(inner) => inner
-                .pull()
-                .await
-                .map_err(|error| AppError::Database(error.to_string())),
-        }
+        self.inner.connect().map_err(Into::into)
     }
 
     pub async fn schema_version(&self) -> Result<i64> {

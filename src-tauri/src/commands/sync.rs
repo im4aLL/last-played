@@ -12,9 +12,10 @@ fn status_for(state: &AppState) -> SyncStatus {
 
 #[tauri::command]
 pub async fn sync_now(state: State<'_, AppState>) -> Result<SyncStatus> {
+    let config = state.config();
     let database = state.database().await?;
     let sync = state.sync_manager().clone();
-    run(&database, &sync, true).await?;
+    run(&database, &sync, &config.device_id).await?;
     Ok(status_for(&state))
 }
 

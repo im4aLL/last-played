@@ -40,11 +40,15 @@ pub async fn get_health(state: tauri::State<'_, AppState>) -> Result<DatabaseHea
 #[tauri::command]
 pub async fn test_db_connection(state: tauri::State<'_, AppState>) -> Result<DatabaseHealth> {
     let database = state.database().await?;
-    let connection = database.connect().await?;
-    connection
-        .query("SELECT 1", ())
-        .await
-        .map_err(|error| crate::error::AppError::Database(error.to_string()))?;
+    if let Some(remote) = database.remote() {
+        remote.select("SELECT 1", &[]).await?;
+    } else {
+        let connection = database.connect().await?;
+        connection
+            .query("SELECT 1", ())
+            .await
+            .map_err(|error| crate::error::AppError::Database(error.to_string()))?;
+    }
 
     health_for(&state).await
 }

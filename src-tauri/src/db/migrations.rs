@@ -5,11 +5,12 @@ use crate::error::{AppError, Result};
 pub struct Migration {
     pub version: i64,
     pub name: &'static str,
-    pub sql: &'static str,
+    /// Statements are run one at a time so a failure points at the exact DDL.
+    pub statements: &'static [&'static str],
 }
 
-const CREATE_MEDIA_TABLES: &str = "
-CREATE TABLE media_item (
+const CREATE_MEDIA_TABLES: &[&str] = &[
+    "CREATE TABLE media_item (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL CHECK (type IN ('movie', 'tv')),
     tmdb_id INTEGER NOT NULL,
@@ -25,9 +26,8 @@ CREATE TABLE media_item (
     added_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE (type, tmdb_id)
-);
-
-CREATE TABLE season (
+)",
+    "CREATE TABLE season (
     id TEXT PRIMARY KEY,
     media_item_id TEXT NOT NULL REFERENCES media_item(id) ON DELETE CASCADE,
     season_number INTEGER NOT NULL,
@@ -36,9 +36,8 @@ CREATE TABLE season (
     poster_path TEXT,
     air_date TEXT,
     UNIQUE (media_item_id, season_number)
-);
-
-CREATE TABLE episode (
+)",
+    "CREATE TABLE episode (
     id TEXT PRIMARY KEY,
     season_id TEXT NOT NULL REFERENCES season(id) ON DELETE CASCADE,
     media_item_id TEXT NOT NULL REFERENCES media_item(id) ON DELETE CASCADE,
@@ -49,18 +48,17 @@ CREATE TABLE episode (
     air_date TEXT,
     runtime INTEGER,
     UNIQUE (season_id, episode_number)
-);
-";
+)",
+];
 
-const CREATE_LINKING_TABLES: &str = "
-CREATE TABLE device (
+const CREATE_LINKING_TABLES: &[&str] = &[
+    "CREATE TABLE device (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     platform TEXT NOT NULL,
     last_seen_at TEXT NOT NULL
-);
-
-CREATE TABLE video_file (
+)",
+    "CREATE TABLE video_file (
     id TEXT PRIMARY KEY,
     media_item_id TEXT NOT NULL REFERENCES media_item(id) ON DELETE CASCADE,
     episode_id TEXT REFERENCES episode(id) ON DELETE CASCADE,
@@ -71,14 +69,13 @@ CREATE TABLE video_file (
     container TEXT,
     added_at TEXT NOT NULL,
     UNIQUE (device_id, path)
-);
+)",
+    "CREATE INDEX video_file_media_item_id_idx ON video_file (media_item_id)",
+    "CREATE INDEX video_file_episode_id_idx ON video_file (episode_id)",
+];
 
-CREATE INDEX video_file_media_item_id_idx ON video_file (media_item_id);
-CREATE INDEX video_file_episode_id_idx ON video_file (episode_id);
-";
-
-const CREATE_WATCH_PROGRESS_TABLE: &str = "
-CREATE TABLE watch_progress (
+const CREATE_WATCH_PROGRESS_TABLE: &[&str] = &[
+    "CREATE TABLE watch_progress (
     target_id TEXT PRIMARY KEY,
     media_item_id TEXT NOT NULL REFERENCES media_item(id) ON DELETE CASCADE,
     episode_id TEXT REFERENCES episode(id) ON DELETE CASCADE,
@@ -86,27 +83,26 @@ CREATE TABLE watch_progress (
     duration_seconds REAL NOT NULL DEFAULT 0,
     watched INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
-);
-
-CREATE INDEX watch_progress_media_item_id_idx ON watch_progress (media_item_id);
-CREATE INDEX watch_progress_episode_id_idx ON watch_progress (episode_id);
-";
+)",
+    "CREATE INDEX watch_progress_media_item_id_idx ON watch_progress (media_item_id)",
+    "CREATE INDEX watch_progress_episode_id_idx ON watch_progress (episode_id)",
+];
 
 pub const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
         name: "create_media_tables",
-        sql: CREATE_MEDIA_TABLES,
+        statements: CREATE_MEDIA_TABLES,
     },
     Migration {
         version: 2,
         name: "create_linking_tables",
-        sql: CREATE_LINKING_TABLES,
+        statements: CREATE_LINKING_TABLES,
     },
     Migration {
         version: 3,
         name: "create_watch_progress",
-        sql: CREATE_WATCH_PROGRESS_TABLE,
+        statements: CREATE_WATCH_PROGRESS_TABLE,
     },
 ];
 
@@ -125,10 +121,12 @@ pub async fn run(connection: &Connection) -> Result<i64> {
     let current = current_version(connection).await?;
 
     for migration in MIGRATIONS.iter().filter(|m| m.version > current) {
-        connection
-            .execute_batch(migration.sql)
-            .await
-            .map_err(|error| AppError::Database(error.to_string()))?;
+        for statement in migration.statements {
+            connection
+                .execute(*statement, ())
+                .await
+                .map_err(|error| AppError::Database(error.to_string()))?;
+        }
 
         connection
             .execute(
