@@ -107,17 +107,19 @@ pub async fn play_video(
     let preferences = state.config().player;
     let mut guard = state.player();
 
-    // The subtitle text scale is a libVLC instance option, so a changed value
-    // only takes effect after the player is rebuilt for the next file.
-    let scale_changed = guard
-        .as_ref()
-        .is_some_and(|player| player.subtitle_scale() != preferences.subtitle_scale);
-    if guard.is_none() || scale_changed {
+    // Subtitle text options are libVLC instance options, so changed values
+    // only take effect after the player is rebuilt for the next file.
+    let options_changed = guard.as_ref().is_some_and(|player| {
+        player.subtitle_size() != preferences.subtitle_size
+            || player.subtitle_font() != preferences.subtitle_font.trim()
+    });
+    if guard.is_none() || options_changed {
         *guard = None;
         let bundle_dir = state.bundled_vlc_dir();
         *guard = Some(PlayerService::new(
             bundle_dir.as_deref(),
-            preferences.subtitle_scale,
+            preferences.subtitle_size,
+            &preferences.subtitle_font,
         )?);
     }
 

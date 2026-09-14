@@ -7,7 +7,8 @@ export type PlayerPreferences = {
   watchedThreshold: number;
   subtitleLanguage: string;
   audioLanguage: string;
-  subtitleScale: number;
+  subtitleSize: number;
+  subtitleFont: string;
   volume: number;
 };
 
@@ -39,8 +40,26 @@ export type SyncStatus = {
   pending: boolean;
 };
 
-export const LANGUAGE_OPTIONS = [
-  { value: "en", label: "English" },
+// Widely available subtitle font families. No single family ships on every
+// OS, so these are common ones and the renderer substitutes when one is
+// missing. "default" maps to an empty family (VLC default), "custom" reveals
+// a free-text input for any other installed font.
+export const SUBTITLE_FONT_OPTIONS = [
+  { value: "default", label: "VLC default" },
+  { value: "Arial", label: "Arial" },
+  { value: "Courier New", label: "Courier New" },
+  { value: "DejaVu Sans", label: "DejaVu Sans" },
+  { value: "Georgia", label: "Georgia" },
+  { value: "Helvetica Neue", label: "Helvetica Neue" },
+  { value: "Noto Sans", label: "Noto Sans" },
+  { value: "Segoe UI", label: "Segoe UI" },
+  { value: "Times New Roman", label: "Times New Roman" },
+  { value: "Trebuchet MS", label: "Trebuchet MS" },
+  { value: "Verdana", label: "Verdana" },
+  { value: "custom", label: "Custom..." },
+];
+
+export const LANGUAGE_OPTIONS = [  { value: "en", label: "English" },
   { value: "es", label: "Spanish" },
   { value: "fr", label: "French" },
   { value: "de", label: "German" },
@@ -61,7 +80,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     watchedThreshold: 90,
     subtitleLanguage: "en",
     audioLanguage: "en",
-    subtitleScale: 100,
+    subtitleSize: 0,
+    subtitleFont: "",
     volume: 100,
   },
 };

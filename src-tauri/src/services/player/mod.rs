@@ -15,6 +15,11 @@ const SUBTITLE_DISABLED: i64 = -1;
 
 const SIDECAR_EXTENSIONS: [&str; 3] = ["srt", "ass", "ssa"];
 
+/// Upper bound for a user-provided subtitle font family name. Family names
+/// are short; this only guards against pathological config values reaching
+/// the libVLC command line.
+const MAX_FONT_FAMILY_LEN: usize = 128;
+
 #[derive(Debug, Clone, Default)]
 pub struct PlaybackPreferences {
     pub audio_language: Option<String>,
@@ -141,7 +146,10 @@ pub struct PlayerService {
     vlc: Vlc,
     media_player: LibvlcMediaPlayer,
     current_path: Option<String>,
-    subtitle_scale: u16,
+    subtitle_size: u16,
+    /// Normalized subtitle font family this instance was created with.
+    /// Empty means the renderer's default font.
+    subtitle_font: String,
     /// Held while playback is running so the display and system stay awake.
     wake: Option<keepawake::KeepAwake>,
 }
@@ -149,16 +157,27 @@ pub struct PlayerService {
 unsafe impl Send for PlayerService {}
 
 impl PlayerService {
-    pub fn new(bundle_dir: Option<&Path>, subtitle_scale: u16) -> Result<Self> {
+    pub fn new(
+        bundle_dir: Option<&Path>,
+        subtitle_size: u16,
+        subtitle_font: &str,
+    ) -> Result<Self> {
         // Subtitle text options have no per-media effect in libVLC, so they
         // have to be applied as instance options when the player is created.
-        let options = vec![
-            format!("--sub-text-scale={subtitle_scale}"),
+        // A zero size keeps the renderer's automatic size, and an empty
+        // family keeps its default font.
+        let subtitle_font: String =
+            subtitle_font.trim().chars().take(MAX_FONT_FAMILY_LEN).collect();
+        let mut options = vec![format!("--freetype-fontsize={subtitle_size}")];
+        if !subtitle_font.is_empty() {
+            options.push(format!("--freetype-font={subtitle_font}"));
+        }
+        options.extend([
             // libVLC draws subtitles with a black outline and shadow by
             // default. Drop both so the text sits cleanly on the video.
             "--freetype-outline-thickness=0".to_string(),
             "--freetype-shadow-opacity=0".to_string(),
-        ];
+        ]);
         let vlc = Vlc::load(locate_plugins(bundle_dir).as_deref(), bundle_dir, &options)?;
         let media_player = unsafe { (vlc.fns.libvlc_media_player_new)(vlc.instance) };
         if media_player.is_null() {
@@ -176,15 +195,23 @@ impl PlayerService {
             vlc,
             media_player,
             current_path: None,
-            subtitle_scale,
+            subtitle_size,
+            subtitle_font,
             wake: None,
         })
     }
 
-    /// The subtitle text scale this instance was created with. Changing it
-    /// requires rebuilding the player.
-    pub fn subtitle_scale(&self) -> u16 {
-        self.subtitle_scale
+    /// The subtitle size in pixels this instance was created with, or zero
+    /// for the renderer's automatic size. Changing it requires rebuilding
+    /// the player.
+    pub fn subtitle_size(&self) -> u16 {
+        self.subtitle_size
+    }
+
+    /// The subtitle font family this instance was created with, or empty
+    /// for the renderer's default. Changing it requires rebuilding the player.
+    pub fn subtitle_font(&self) -> &str {
+        &self.subtitle_font
     }
 
     /// Keeps the display and system awake while a video is actually playing.

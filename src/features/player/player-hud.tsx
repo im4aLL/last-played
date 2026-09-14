@@ -1,4 +1,5 @@
 import {
+  Captions,
   Gauge,
   Pause,
   Play,
@@ -22,6 +23,7 @@ const FEEDBACK_ICONS: Record<FeedbackKind, LucideIcon> = {
   mute: VolumeX,
   unmute: Volume2,
   rate: Gauge,
+  subtitles: Captions,
 };
 
 export default function PlayerHud({

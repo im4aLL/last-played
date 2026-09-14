@@ -20,8 +20,12 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { useSyncNow, useSyncStatus } from "@/features/sync/use-sync";
 import { testDbConnection } from "@/lib/api";
-import { LANGUAGE_OPTIONS, useAppConfig, type DbMode } from "@/lib/app-config";
-import { errorMessage } from "@/lib/errors";
+import {
+  LANGUAGE_OPTIONS,
+  SUBTITLE_FONT_OPTIONS,
+  useAppConfig,
+  type DbMode,
+} from "@/lib/app-config";import { errorMessage } from "@/lib/errors";
 
 function SectionCard({
   icon: Icon,
@@ -131,6 +135,24 @@ export default function SettingsPage() {
     void setDbMode(value as DbMode).catch((cause) => {
       setTestResult(errorMessage(cause));
     });
+  };
+
+  const isCustomSubtitleFont =
+    player.subtitleFont !== "" &&
+    !SUBTITLE_FONT_OPTIONS.some((font) => font.value === player.subtitleFont);
+  const subtitleFontValue =
+    player.subtitleFont === ""
+      ? "default"
+      : isCustomSubtitleFont
+        ? "custom"
+        : player.subtitleFont;
+
+  const handleSubtitleFontChange = (value: string) => {
+    if (value === "custom") {
+      if (!isCustomSubtitleFont) setPlayerPreferences({ subtitleFont: "" });
+    } else {
+      setPlayerPreferences({ subtitleFont: value === "default" ? "" : value });
+    }
   };
 
   return (
@@ -347,16 +369,49 @@ export default function SettingsPage() {
         </SettingField>
 
         <SliderSetting
-          id="subtitle-scale"
+          id="subtitle-size"
           label="Subtitle font size"
-          description="Scales subtitle text. Applies when the next video starts."
-          value={player.subtitleScale}
-          min={20}
-          max={200}
-          step={10}
-          format={(value) => `${value}%`}
-          onChange={(subtitleScale) => setPlayerPreferences({ subtitleScale })}
+          description="Absolute subtitle size in pixels. Auto uses the renderer's default size. Applies when the next video starts."
+          value={player.subtitleSize}
+          min={0}
+          max={96}
+          step={2}
+          format={(value) => (value === 0 ? "Auto" : `${value}px`)}
+          onChange={(subtitleSize) => setPlayerPreferences({ subtitleSize })}
         />
+
+        <SettingField
+          id="subtitle-font"
+          label="Subtitle font"
+          description="Font family for plain-text subtitles. Availability varies by OS and the renderer substitutes when a family is missing. Pick Custom for any other installed font. Applies when the next video starts."
+        >
+          <Select
+            value={subtitleFontValue}
+            onValueChange={handleSubtitleFontChange}
+          >
+            <SelectTrigger id="subtitle-font" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SUBTITLE_FONT_OPTIONS.map((font) => (
+                <SelectItem key={font.value} value={font.value}>
+                  {font.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isCustomSubtitleFont && (
+            <Input
+              value={player.subtitleFont}
+              onChange={(event) =>
+                setPlayerPreferences({ subtitleFont: event.target.value })
+              }
+              placeholder="e.g. Inter"
+              autoComplete="off"
+              className="mt-2"
+            />
+          )}
+        </SettingField>
 
         <SettingField
           id="audio-language"

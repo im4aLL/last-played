@@ -1,4 +1,6 @@
 import {
+  Captions,
+  CaptionsOff,
   Check,
   ChevronDown,
   Keyboard,
@@ -348,6 +350,7 @@ export default function ControlDock({
   const subtitleLabel =
     state.subtitleTracks.find((track) => track.id === state.subtitleTrackId)
       ?.label ?? "Off";
+  const subtitlesOn = state.subtitleTrackId !== SUBTITLE_OFF;
   const speedLabel = `${state.rate}x`;
 
   const toggleMenu = (menu: DockMenu) => {
@@ -522,6 +525,12 @@ export default function ControlDock({
           </div>
 
           <div className="flex items-center gap-1.5">
+            <DockButton
+              label={subtitlesOn ? "Turn subtitles off" : "Turn subtitles on"}
+              icon={subtitlesOn ? Captions : CaptionsOff}
+              disabled={state.subtitleTracks.length === 0}
+              onClick={commands.toggleSubtitles}
+            />
             <DockButton
               label={state.muted ? "Unmute" : "Mute"}
               icon={state.muted ? VolumeX : Volume2}

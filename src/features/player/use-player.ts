@@ -35,7 +35,15 @@ export type PlayerPhase = "loading" | "error" | "ready";
 export type PlaybackStatus = "playing" | "paused" | "buffering" | "ended";
 
 export type FeedbackKind =
-  "play" | "pause" | "forward" | "back" | "volume" | "mute" | "unmute" | "rate";
+  | "play"
+  | "pause"
+  | "forward"
+  | "back"
+  | "volume"
+  | "mute"
+  | "unmute"
+  | "rate"
+  | "subtitles";
 
 export type PlayerFeedback = {
   id: number;
@@ -544,10 +552,12 @@ export function usePlayer(
       toggleSubtitles: () => {
         const currentTrack = backend?.subtitleTrackId ?? SUBTITLE_OFF;
         if (currentTrack !== SUBTITLE_OFF) {
+          showFeedback("subtitles", "Subtitles off");
           send("selectSubtitleTrack", SUBTITLE_OFF);
           return;
         }
         const first = backend?.subtitleTracks.find((track) => track.id >= 0);
+        showFeedback("subtitles", first ? "Subtitles on" : "No subtitles");
         send("selectSubtitleTrack", first?.id ?? SUBTITLE_OFF);
       },
       next: () => {

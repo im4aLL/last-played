@@ -21,9 +21,13 @@ pub struct PlayerPreferences {
     pub watched_threshold: u8,
     pub subtitle_language: String,
     pub audio_language: String,
-    /// Subtitle text scale as a percentage, matching libVLC's `sub-text-scale`
-    /// (valid range 10..=500, where 100 keeps the renderer's default size).
-    pub subtitle_scale: u16,
+    /// Subtitle size in pixels, matching libVLC's `freetype-fontsize`
+    /// (valid range 0..=4096, where 0 keeps the renderer's automatic size).
+    pub subtitle_size: u16,
+    /// Subtitle font family matching libVLC's `freetype-font`. Empty keeps
+    /// the renderer's default. The family must be installed on the device,
+    /// and only plain-text subtitles use it.
+    pub subtitle_font: String,
     pub volume: u8,
 }
 
@@ -33,7 +37,8 @@ impl Default for PlayerPreferences {
             watched_threshold: 90,
             subtitle_language: "en".to_string(),
             audio_language: "en".to_string(),
-            subtitle_scale: 100,
+            subtitle_size: 0,
+            subtitle_font: String::new(),
             volume: 100,
         }
     }
