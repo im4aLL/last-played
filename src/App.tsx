@@ -13,13 +13,16 @@ const router = createBrowserRouter([
     element: <SetupPage />,
   },
   {
+    path: "/player/:id",
+    element: <PlayerPage />,
+  },
+  {
     path: "/",
     element: <AppShell />,
     children: [
       { index: true, element: <LibraryPage /> },
       { path: "media/:id", element: <MediaPage /> },
       { path: "settings", element: <SettingsPage /> },
-      { path: "player/:id", element: <PlayerPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
