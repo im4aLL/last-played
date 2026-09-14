@@ -1,5 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import AppShell from "@/components/app/app-shell";
 import LibraryPage from "@/features/library/library-page";
@@ -45,6 +46,18 @@ function AppLoading() {
 export default function App() {
   const loaded = useAppConfig((state) => state.loaded);
   const load = useAppConfig((state) => state.load);
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            retry: 1,
+            refetchOnWindowFocus: false,
+          },
+        },
+      }),
+  );
 
   useEffect(() => {
     void load();
@@ -54,5 +67,9 @@ export default function App() {
     return <AppLoading />;
   }
 
-  return <RouterProvider router={router} />;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  );
 }

@@ -36,6 +36,8 @@ pub fn run() {
             commands::media::preview_tmdb_media,
             commands::media::add_media_from_tmdb,
             commands::media::refresh_metadata,
+            commands::library::list_media,
+            commands::library::get_media,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

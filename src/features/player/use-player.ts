@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import { useAppConfig } from "@/lib/app-config";
-import type { MediaScenario } from "@/features/media/media-mock";
 import {
   AUDIO_TRACKS,
   fetchPlaybackPlaylist,
@@ -375,10 +374,7 @@ type LoadState = {
   error: Error | null;
 };
 
-export function usePlayer(
-  mediaId: string,
-  scenario: MediaScenario = "default",
-): PlayerController {
+export function usePlayer(mediaId: string): PlayerController {
   const preferredVolume = useAppConfig((state) => state.player.volume);
   const [state, dispatch] = useReducer(
     playerReducer,
@@ -386,7 +382,7 @@ export function usePlayer(
     createInitialState,
   );
   const [reloadToken, setReloadToken] = useState(0);
-  const requestKey = `${mediaId}:${scenario}:${reloadToken}`;
+  const requestKey = `${mediaId}:${reloadToken}`;
   const [load, setLoad] = useState<LoadState>(() => ({
     key: requestKey,
     status: "loading",
@@ -397,7 +393,7 @@ export function usePlayer(
   useEffect(() => {
     let active = true;
 
-    fetchPlaybackPlaylist(mediaId, scenario).then(
+    fetchPlaybackPlaylist(mediaId).then(
       (playlist) => {
         if (!active) return;
         setLoad({ key: requestKey, status: "ready", error: null });
@@ -416,7 +412,7 @@ export function usePlayer(
     return () => {
       active = false;
     };
-  }, [mediaId, scenario, requestKey]);
+  }, [mediaId, requestKey]);
 
   useEffect(() => {
     if (state.status !== "playing") return;

@@ -7,6 +7,8 @@ import type {
 } from "./app-config";
 import type {
   AddedMedia,
+  MediaDetail,
+  MediaItem,
   MediaPreview,
   MediaType,
   TmdbSearchResult,
@@ -64,4 +66,12 @@ export function addMediaFromTmdb(
 
 export function refreshMetadata(mediaId: string): Promise<AddedMedia> {
   return invoke<AddedMedia>("refresh_metadata", { mediaId });
+}
+
+export function listMedia(): Promise<MediaItem[]> {
+  return invoke<MediaItem[]>("list_media");
+}
+
+export function getMedia(mediaId: string): Promise<MediaDetail> {
+  return invoke<MediaDetail>("get_media", { mediaId });
 }

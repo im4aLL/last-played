@@ -132,7 +132,7 @@ export default function MediaRow({
           <div
             ref={scrollRef}
             onScroll={updateScrollState}
-            className="flex snap-x gap-4 overflow-x-auto pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="-mx-1 flex snap-x gap-4 overflow-x-auto px-1 pt-1 pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {items.map((item) => (
               <Link

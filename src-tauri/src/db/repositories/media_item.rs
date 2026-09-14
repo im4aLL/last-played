@@ -97,6 +97,25 @@ pub async fn find_by_id(conn: &Connection, id: &str) -> Result<Option<MediaItem>
     }
 }
 
+pub async fn list_all(conn: &Connection) -> Result<Vec<MediaItem>> {
+    let mut rows = conn
+        .query(
+            &format!(
+                "SELECT {COLUMNS} FROM media_item ORDER BY added_at DESC, title COLLATE NOCASE ASC"
+            ),
+            (),
+        )
+        .await
+        .map_err(AppError::from)?;
+
+    let mut items = Vec::new();
+    while let Some(row) = rows.next().await.map_err(AppError::from)? {
+        items.push(from_row(&row)?);
+    }
+
+    Ok(items)
+}
+
 pub async fn find_by_tmdb(
     conn: &Connection,
     media_type: MediaType,

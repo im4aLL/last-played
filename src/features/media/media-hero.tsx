@@ -32,7 +32,7 @@ export default function MediaHero({ detail }: MediaHeroProps) {
 
   return (
     <section className="relative">
-      <div className="relative h-40 overflow-hidden bg-muted md:h-60">
+      <div className="relative h-72 overflow-hidden bg-muted md:h-96">
         {detail.backdropUrl ? (
           <img
             src={detail.backdropUrl}

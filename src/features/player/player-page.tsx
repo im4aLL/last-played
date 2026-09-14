@@ -1,14 +1,9 @@
 import { TriangleAlert } from "lucide-react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import EmptyState from "@/components/app/empty-state";
 import { Button } from "@/components/ui/button";
-import type { MediaScenario } from "@/features/media/media-mock";
 import PlayerStage from "@/features/player/player-stage";
 import { usePlayer } from "@/features/player/use-player";
-
-function parseScenario(value: string | null): MediaScenario {
-  return value === "error" ? "error" : "default";
-}
 
 function PlayerLoading() {
   return (
@@ -21,9 +16,7 @@ function PlayerLoading() {
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const scenario = parseScenario(searchParams.get("demo"));
-  const controller = usePlayer(id ?? "", scenario);
+  const controller = usePlayer(id ?? "");
 
   if (controller.status === "loading") {
     return <PlayerLoading />;

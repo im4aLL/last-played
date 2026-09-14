@@ -1,7 +1,4 @@
-import {
-  fetchMediaDetail,
-  type MediaScenario,
-} from "@/features/media/media-mock";
+import { getMedia } from "@/lib/api";
 import type {
   Episode,
   MediaDetail,
@@ -154,8 +151,7 @@ function buildPlaylist(detail: MediaDetail): PlaybackPlaylist {
 
 export async function fetchPlaybackPlaylist(
   mediaId: string,
-  scenario: MediaScenario = "default",
 ): Promise<PlaybackPlaylist> {
-  const detail = await fetchMediaDetail(mediaId, scenario);
+  const detail = await getMedia(mediaId);
   return buildPlaylist(detail);
 }

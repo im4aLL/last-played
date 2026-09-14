@@ -1,16 +1,11 @@
 import { TriangleAlert } from "lucide-react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import EmptyState from "@/components/app/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { MediaScenario } from "@/features/media/media-mock";
 import MediaHero from "@/features/media/media-hero";
 import SeasonSection from "@/features/media/season-section";
 import { useMedia } from "@/features/media/use-media";
-
-function parseScenario(value: string | null): MediaScenario {
-  return value === "error" ? "error" : "default";
-}
 
 function MediaDetailSkeleton() {
   return (
@@ -33,9 +28,7 @@ function MediaDetailSkeleton() {
 
 export default function MediaPage() {
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const scenario = parseScenario(searchParams.get("demo"));
-  const { status, detail, error, reload } = useMedia(id ?? "", scenario);
+  const { status, detail, error, reload } = useMedia(id ?? "");
 
   if (status === "loading") {
     return <MediaDetailSkeleton />;

@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   Loader2,
@@ -271,6 +272,7 @@ function AddedPanel({
 
 export default function AddMediaPage() {
   const tmdbApiKey = useAppConfig((state) => state.tmdbApiKey);
+  const queryClient = useQueryClient();
 
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ status: "idle" });
@@ -324,6 +326,7 @@ export default function AddMediaPage() {
       );
       setAdded(result);
       setPreview({ status: "idle" });
+      await queryClient.invalidateQueries({ queryKey: ["media"] });
     } catch (cause) {
       setAddError(errorMessage(cause));
     } finally {

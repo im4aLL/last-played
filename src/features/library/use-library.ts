@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  fetchLibrary,
-  LIBRARY_ROW_DEFS,
-  type LibraryRow,
-  type LibraryScenario,
-} from "@/features/library/library-mock";
+import { useQuery } from "@tanstack/react-query";
+import { listMedia } from "@/lib/api";
+import type { MediaItem } from "@/lib/types";
+
+export type LibraryRow = {
+  id: string;
+  title: string;
+  items: MediaItem[];
+};
 
 export type LibraryStatus = "loading" | "error" | "ready";
 
@@ -15,68 +17,47 @@ export type LibraryState = {
   reload: () => void;
 };
 
-type Snapshot = {
-  key: string;
-  status: LibraryStatus;
-  rows: LibraryRow[];
-  error: Error | null;
-};
+const RECENTLY_ADDED_LIMIT = 12;
 
-function emptyRows(): LibraryRow[] {
-  return LIBRARY_ROW_DEFS.map(({ id, title }) => ({ id, title, items: [] }));
+function buildRows(items: MediaItem[]): LibraryRow[] {
+  return [
+    { id: "continue-watching", title: "Continue Watching", items: [] },
+    {
+      id: "recently-added",
+      title: "Recently Added",
+      items: items.slice(0, RECENTLY_ADDED_LIMIT),
+    },
+    {
+      id: "movies",
+      title: "All Movies",
+      items: items.filter((item) => item.type === "movie"),
+    },
+    {
+      id: "shows",
+      title: "All Shows",
+      items: items.filter((item) => item.type === "tv"),
+    },
+  ];
 }
 
-function loadingSnapshot(key: string): Snapshot {
-  return { key, status: "loading", rows: emptyRows(), error: null };
-}
+export function useLibrary(): LibraryState {
+  const query = useQuery({
+    queryKey: ["media", "list"],
+    queryFn: listMedia,
+  });
 
-function toError(value: unknown): Error {
-  return value instanceof Error ? value : new Error(String(value));
-}
-
-export function useLibrary(
-  scenario: LibraryScenario = "default",
-): LibraryState {
-  const [reloadToken, setReloadToken] = useState(0);
-  const requestKey = `${scenario}:${reloadToken}`;
-  const [snapshot, setSnapshot] = useState<Snapshot>(() =>
-    loadingSnapshot(requestKey),
-  );
-
-  useEffect(() => {
-    let active = true;
-
-    fetchLibrary(scenario).then(
-      (rows) => {
-        if (active) {
-          setSnapshot({ key: requestKey, status: "ready", rows, error: null });
-        }
-      },
-      (error: unknown) => {
-        if (active) {
-          setSnapshot({
-            key: requestKey,
-            status: "error",
-            rows: emptyRows(),
-            error: toError(error),
-          });
-        }
-      },
-    );
-
-    return () => {
-      active = false;
-    };
-  }, [scenario, requestKey]);
-
-  const reload = useCallback(() => setReloadToken((token) => token + 1), []);
-  const current =
-    snapshot.key === requestKey ? snapshot : loadingSnapshot(requestKey);
+  const status: LibraryStatus = query.isPending
+    ? "loading"
+    : query.isError
+      ? "error"
+      : "ready";
 
   return {
-    status: current.status,
-    rows: current.rows,
-    error: current.error,
-    reload,
+    status,
+    rows: buildRows(query.data ?? []),
+    error: query.error,
+    reload: () => {
+      void query.refetch();
+    },
   };
 }

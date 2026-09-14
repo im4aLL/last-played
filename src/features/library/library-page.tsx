@@ -1,7 +1,5 @@
 import { Film, MonitorPlay, Sparkles, Tv, type LucideIcon } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
 import MediaRow from "@/components/app/media-row";
-import type { LibraryScenario } from "@/features/library/library-mock";
 import { useLibrary } from "@/features/library/use-library";
 
 const ROW_ICONS: Record<string, LucideIcon> = {
@@ -19,14 +17,8 @@ const EMPTY_MESSAGES: Record<string, string> = {
   shows: "No shows in your library yet.",
 };
 
-function parseScenario(value: string | null): LibraryScenario {
-  return value === "empty" || value === "error" ? value : "default";
-}
-
 export default function LibraryPage() {
-  const [searchParams] = useSearchParams();
-  const scenario = parseScenario(searchParams.get("demo"));
-  const { status, rows, error, reload } = useLibrary(scenario);
+  const { status, rows, error, reload } = useLibrary();
 
   return (
     <div className="flex flex-col gap-8 p-6 md:p-8">
