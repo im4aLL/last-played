@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -46,6 +46,7 @@ const MEDIA_ITEM_TABLE: TableSync = TableSync {
         "first_air_date",
         "runtime",
         "status",
+        "vote_average",
         "added_at",
         "updated_at",
     ],
@@ -331,7 +332,88 @@ async fn apply_remote_schema(connection: &Connection, remote: &RemoteClient) -> 
         remote.execute(&statement, &[]).await?;
     }
 
+    // `CREATE TABLE IF NOT EXISTS` leaves existing remote tables untouched, so
+    // columns added by later migrations must be appended explicitly.
+    for name in SCHEMA_TABLE_ORDER {
+        ensure_remote_columns(connection, remote, name).await?;
+    }
+
     Ok(())
+}
+
+/// Appends local columns that an already-existing remote table is missing.
+async fn ensure_remote_columns(
+    connection: &Connection,
+    remote: &RemoteClient,
+    table: &str,
+) -> Result<()> {
+    let local = local_columns(connection, table).await?;
+    let remote_rows = remote
+        .select(&format!("PRAGMA table_info({table})"), &[])
+        .await?;
+    let existing: HashSet<String> = remote_rows
+        .iter()
+        .filter_map(|row| match row.get(1) {
+            Some(Value::Text(name)) => Some(name.clone()),
+            _ => None,
+        })
+        .collect();
+
+    for column in local {
+        if existing.contains(&column.name) {
+            continue;
+        }
+        remote
+            .execute(
+                &format!(
+                    "ALTER TABLE {table} ADD COLUMN {} {}",
+                    column.name, column.definition
+                ),
+                &[],
+            )
+            .await?;
+    }
+
+    Ok(())
+}
+
+struct ColumnInfo {
+    name: String,
+    definition: String,
+}
+
+/// Reads non-primary-key columns from a local table via `PRAGMA table_info`.
+/// Primary keys always exist on both sides, so they are skipped.
+async fn local_columns(connection: &Connection, table: &str) -> Result<Vec<ColumnInfo>> {
+    let mut rows = connection
+        .query(&format!("PRAGMA table_info({table})"), ())
+        .await
+        .map_err(db_error)?;
+
+    let mut columns = Vec::new();
+    while let Some(row) = rows.next().await.map_err(db_error)? {
+        let primary_key: i64 = row.get(5).map_err(db_error)?;
+        if primary_key != 0 {
+            continue;
+        }
+
+        let name: String = row.get(1).map_err(db_error)?;
+        let mut definition: String = row.get(2).map_err(db_error)?;
+        let not_null: i64 = row.get(3).map_err(db_error)?;
+        let default: Option<String> = row.get(4).map_err(db_error)?;
+
+        if not_null != 0 {
+            definition.push_str(" NOT NULL");
+        }
+        if let Some(default) = default {
+            definition.push_str(" DEFAULT ");
+            definition.push_str(&default);
+        }
+
+        columns.push(ColumnInfo { name, definition });
+    }
+
+    Ok(columns)
 }
 
 fn with_if_not_exists(sql: &str, prefix: &str) -> String {

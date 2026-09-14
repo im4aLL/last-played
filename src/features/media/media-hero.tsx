@@ -1,11 +1,13 @@
 import { Check, Play, Undo2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import PosterArt from "@/components/app/poster-art";
+import RatingBadge from "@/components/app/rating-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import LinkFileButton from "@/features/linking/link-file-button";
 import LinkedFile from "@/features/linking/linked-file";
 import ScanFolderButton from "@/features/linking/scan-folder-button";
+import RefreshMetadataButton from "@/features/media/refresh-metadata-button";
 import { useSetWatched } from "@/features/media/use-watched";
 import { formatCount, formatRuntime } from "@/lib/format";
 import { posterHue } from "@/lib/poster";
@@ -79,11 +81,15 @@ export default function MediaHero({ detail }: MediaHeroProps) {
               <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-4xl">
                 {detail.title}
               </h1>
-              {meta.length > 0 && (
+              {(meta.length > 0 || detail.voteAverage != null) && (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                   {meta.map((value) => (
                     <span key={value}>{value}</span>
                   ))}
+                  <RatingBadge
+                    value={detail.voteAverage}
+                    className="text-foreground"
+                  />
                 </div>
               )}
             </div>
@@ -139,6 +145,8 @@ export default function MediaHero({ detail }: MediaHeroProps) {
                   seasons={detail.seasons}
                 />
               )}
+
+              <RefreshMetadataButton mediaId={detail.id} className="ml-auto" />
             </div>
           </div>
         </div>

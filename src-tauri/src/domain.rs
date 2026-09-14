@@ -42,6 +42,7 @@ pub struct MediaItem {
     pub first_air_date: Option<String>,
     pub runtime: Option<i64>,
     pub status: Option<String>,
+    pub vote_average: Option<f64>,
 }
 
 #[derive(Debug, Clone)]

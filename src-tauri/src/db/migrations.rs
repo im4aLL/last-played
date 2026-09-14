@@ -88,6 +88,9 @@ const CREATE_WATCH_PROGRESS_TABLE: &[&str] = &[
     "CREATE INDEX watch_progress_episode_id_idx ON watch_progress (episode_id)",
 ];
 
+const ADD_MEDIA_ITEM_VOTE_AVERAGE: &[&str] =
+    &["ALTER TABLE media_item ADD COLUMN vote_average REAL"];
+
 pub const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
@@ -103,6 +106,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 3,
         name: "create_watch_progress",
         statements: CREATE_WATCH_PROGRESS_TABLE,
+    },
+    Migration {
+        version: 4,
+        name: "add_media_item_vote_average",
+        statements: ADD_MEDIA_ITEM_VOTE_AVERAGE,
     },
 ];
 

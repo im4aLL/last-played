@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 import { cn } from "cn";
 import EmptyState from "@/components/app/empty-state";
 import PosterArt from "@/components/app/poster-art";
+import RatingBadge from "@/components/app/rating-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -73,6 +74,7 @@ function SearchResultCard({
           <span className="text-xs text-muted-foreground">
             {result.year ?? "Unknown year"}
           </span>
+          <RatingBadge value={result.voteAverage} className="ml-auto text-xs" />
         </div>
       </div>
     </button>

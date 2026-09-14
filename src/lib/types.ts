@@ -78,6 +78,7 @@ export type MediaDetail = {
   backdropUrl: string | null;
   releaseDate: string | null;
   runtimeMinutes: number | null;
+  voteAverage: number | null;
   genres: string[];
   progress: WatchProgress | null;
   resume: ResumePoint | null;
@@ -135,6 +136,7 @@ export type TmdbSearchResult = {
   year: number | null;
   overview: string | null;
   posterUrl: string | null;
+  voteAverage: number | null;
 };
 
 export type EpisodePreview = {

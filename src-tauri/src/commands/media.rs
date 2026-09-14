@@ -216,6 +216,7 @@ async fn persist(state: &AppState, metadata: &MediaMetadata) -> Result<AddedMedi
         first_air_date: metadata.first_air_date.clone(),
         runtime: metadata.runtime,
         status: metadata.status.clone(),
+        vote_average: metadata.vote_average,
     };
 
     if refreshed {

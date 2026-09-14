@@ -27,6 +27,7 @@ struct SearchResult {
     poster_path: Option<String>,
     release_date: Option<String>,
     first_air_date: Option<String>,
+    vote_average: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +41,7 @@ struct MovieDetails {
     release_date: Option<String>,
     runtime: Option<i64>,
     status: Option<String>,
+    vote_average: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,6 +54,7 @@ struct TvDetails {
     backdrop_path: Option<String>,
     first_air_date: Option<String>,
     status: Option<String>,
+    vote_average: Option<f64>,
     seasons: Option<Vec<TvSeasonSummary>>,
 }
 
@@ -93,6 +96,7 @@ pub struct TmdbSearchResult {
     pub year: Option<i64>,
     pub overview: Option<String>,
     pub poster_url: Option<String>,
+    pub vote_average: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -108,6 +112,7 @@ pub struct MediaMetadata {
     pub first_air_date: Option<String>,
     pub runtime: Option<i64>,
     pub status: Option<String>,
+    pub vote_average: Option<f64>,
     pub seasons: Vec<SeasonMetadata>,
 }
 
@@ -181,6 +186,7 @@ impl TmdbClient {
                 year: year_from_date(date.as_deref()),
                 overview: result.overview.filter(|value| !value.is_empty()),
                 poster_url: image_url(result.poster_path.as_deref(), POSTER_SIZE),
+                vote_average: positive_rating(result.vote_average),
             });
         }
 
@@ -213,6 +219,7 @@ impl TmdbClient {
             first_air_date: None,
             runtime: movie.runtime,
             status: movie.status,
+            vote_average: positive_rating(movie.vote_average),
             seasons: Vec::new(),
         })
     }
@@ -246,6 +253,7 @@ impl TmdbClient {
             first_air_date: details.first_air_date,
             runtime: None,
             status: details.status,
+            vote_average: positive_rating(details.vote_average),
             seasons,
         })
     }
@@ -340,6 +348,12 @@ pub fn backdrop_url(path: Option<&str>) -> Option<String> {
 
 pub fn still_url(path: Option<&str>) -> Option<String> {
     image_url(path, STILL_SIZE)
+}
+
+/// TMDB reports `0.0` for titles without enough votes. Treat that as "no
+/// rating" so the UI can hide the badge instead of showing a misleading zero.
+fn positive_rating(value: Option<f64>) -> Option<f64> {
+    value.filter(|rating| *rating > 0.0)
 }
 
 fn year_from_date(date: Option<&str>) -> Option<i64> {

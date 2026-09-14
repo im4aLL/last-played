@@ -108,6 +108,7 @@ pub struct MediaDetail {
     pub backdrop_url: Option<String>,
     pub release_date: Option<String>,
     pub runtime_minutes: Option<i64>,
+    pub vote_average: Option<f64>,
     pub genres: Vec<String>,
     pub progress: Option<WatchProgress>,
     pub resume: Option<ResumePoint>,
@@ -280,6 +281,7 @@ pub async fn get_media(state: State<'_, AppState>, media_id: String) -> Result<M
         release_date,
         first_air_date,
         runtime,
+        vote_average,
         ..
     } = item;
     let date = release_date.as_deref().or(first_air_date.as_deref());
@@ -294,6 +296,7 @@ pub async fn get_media(state: State<'_, AppState>, media_id: String) -> Result<M
         backdrop_url: backdrop_url(backdrop_path.as_deref()),
         release_date: date.map(str::to_string),
         runtime_minutes: runtime,
+        vote_average,
         genres: Vec::new(),
         progress: media_progress,
         resume,

@@ -3,7 +3,7 @@ use turso::{params::Params, Connection, Row, Value};
 use crate::domain::{MediaItem, MediaType, WatchProgress};
 use crate::error::{AppError, Result};
 
-const COLUMNS: &str = "id, type, tmdb_id, title, original_title, overview, poster_path, backdrop_path, release_date, first_air_date, runtime, status";
+const COLUMNS: &str = "id, type, tmdb_id, title, original_title, overview, poster_path, backdrop_path, release_date, first_air_date, runtime, status, vote_average";
 
 fn from_row(row: &Row) -> Result<MediaItem> {
     let media_type: String = row.get(1)?;
@@ -20,6 +20,7 @@ fn from_row(row: &Row) -> Result<MediaItem> {
         first_air_date: row.get(9)?,
         runtime: row.get(10)?,
         status: row.get(11)?,
+        vote_average: row.get(12)?,
     })
 }
 
@@ -28,9 +29,9 @@ pub async fn insert(conn: &Connection, item: &MediaItem) -> Result<()> {
         "INSERT INTO media_item (
             id, type, tmdb_id, title, original_title, overview, poster_path,
             backdrop_path, release_date, first_air_date, runtime, status,
-            added_at, updated_at
+            vote_average, added_at, updated_at
         ) VALUES (
-            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
             strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
             strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         )",
@@ -47,6 +48,7 @@ pub async fn insert(conn: &Connection, item: &MediaItem) -> Result<()> {
             item.first_air_date.as_deref(),
             item.runtime,
             item.status.as_deref(),
+            item.vote_average,
         ),
     )
     .await
@@ -60,6 +62,7 @@ pub async fn update(conn: &Connection, item: &MediaItem) -> Result<()> {
             type = ?2, tmdb_id = ?3, title = ?4, original_title = ?5,
             overview = ?6, poster_path = ?7, backdrop_path = ?8,
             release_date = ?9, first_air_date = ?10, runtime = ?11, status = ?12,
+            vote_average = ?13,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         WHERE id = ?1",
         (
@@ -75,6 +78,7 @@ pub async fn update(conn: &Connection, item: &MediaItem) -> Result<()> {
             item.first_air_date.as_deref(),
             item.runtime,
             item.status.as_deref(),
+            item.vote_average,
         ),
     )
     .await
@@ -218,7 +222,7 @@ const EFFECTIVE_CTE: &str = "WITH effective AS (
     )
 )";
 
-const LIST_COLUMNS: &str = "m.id, m.type, m.tmdb_id, m.title, m.original_title, m.overview, m.poster_path, m.backdrop_path, m.release_date, m.first_air_date, m.runtime, m.status, e.episode_id, e.position_seconds, e.duration_seconds, e.watched";
+const LIST_COLUMNS: &str = "m.id, m.type, m.tmdb_id, m.title, m.original_title, m.overview, m.poster_path, m.backdrop_path, m.release_date, m.first_air_date, m.runtime, m.status, m.vote_average, e.episode_id, e.position_seconds, e.duration_seconds, e.watched";
 
 const EFFECTIVE_FROM: &str = "FROM media_item m JOIN effective e ON e.media_id = m.id";
 
@@ -273,10 +277,10 @@ fn build_where(query: &LibraryQuery) -> (String, Vec<Value>) {
 
 fn from_row_with_progress(row: &Row) -> Result<MediaWithProgress> {
     let item = from_row(row)?;
-    let episode_id: Option<String> = row.get(12)?;
-    let position_seconds: Option<f64> = row.get(13)?;
-    let duration_seconds: Option<f64> = row.get(14)?;
-    let watched: Option<i64> = row.get(15)?;
+    let episode_id: Option<String> = row.get(13)?;
+    let position_seconds: Option<f64> = row.get(14)?;
+    let duration_seconds: Option<f64> = row.get(15)?;
+    let watched: Option<i64> = row.get(16)?;
 
     let progress = watched.map(|watched| WatchProgress {
         media_item_id: item.id.clone(),
