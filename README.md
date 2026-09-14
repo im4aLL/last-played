@@ -82,7 +82,7 @@ docs/                     ARCHITECTURE.md, PACKAGING.md
 
 ## Configuration
 
-Stored in Tauri `app_config_dir/config.json` (`0600` on Unix). Holds `deviceId`, `deviceName`, `dbMode` (`local` | `remote`), `tmdbApiKey`, `tursoUrl`, `tursoAuthToken`, and player prefs (watched threshold, subtitle/audio language, volume). Library data lives in `app_data_dir/library.db`.
+Stored in Tauri `app_config_dir/config.json` (`0600` on Unix). Holds `deviceId`, `deviceName`, `dbMode` (`local` | `remote`), `tmdbApiKey`, `tursoUrl`, `tursoAuthToken`, and player prefs (watched threshold, subtitle/audio language, subtitle font size, volume). Library data lives in `app_data_dir/library.db`.
 
 Remote sync notes:
 

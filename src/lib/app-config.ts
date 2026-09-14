@@ -7,6 +7,7 @@ export type PlayerPreferences = {
   watchedThreshold: number;
   subtitleLanguage: string;
   audioLanguage: string;
+  subtitleScale: number;
   volume: number;
 };
 
@@ -60,6 +61,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     watchedThreshold: 90,
     subtitleLanguage: "en",
     audioLanguage: "en",
+    subtitleScale: 100,
     volume: 100,
   },
 };

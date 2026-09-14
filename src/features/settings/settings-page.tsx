@@ -346,6 +346,18 @@ export default function SettingsPage() {
           </Select>
         </SettingField>
 
+        <SliderSetting
+          id="subtitle-scale"
+          label="Subtitle font size"
+          description="Scales subtitle text. Applies when the next video starts."
+          value={player.subtitleScale}
+          min={20}
+          max={200}
+          step={10}
+          format={(value) => `${value}%`}
+          onChange={(subtitleScale) => setPlayerPreferences({ subtitleScale })}
+        />
+
         <SettingField
           id="audio-language"
           label="Preferred audio language"

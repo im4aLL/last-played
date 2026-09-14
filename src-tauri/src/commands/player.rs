@@ -104,10 +104,21 @@ pub async fn play_video(
         None => set_surface_hidden(&window, surface, false),
     }
 
+    let preferences = state.config().player;
     let mut guard = state.player();
-    if guard.is_none() {
+
+    // The subtitle text scale is a libVLC instance option, so a changed value
+    // only takes effect after the player is rebuilt for the next file.
+    let scale_changed = guard
+        .as_ref()
+        .is_some_and(|player| player.subtitle_scale() != preferences.subtitle_scale);
+    if guard.is_none() || scale_changed {
+        *guard = None;
         let bundle_dir = state.bundled_vlc_dir();
-        *guard = Some(PlayerService::new(bundle_dir.as_deref())?);
+        *guard = Some(PlayerService::new(
+            bundle_dir.as_deref(),
+            preferences.subtitle_scale,
+        )?);
     }
 
     let player = guard
@@ -115,7 +126,6 @@ pub async fn play_video(
         .ok_or_else(|| AppError::Player("The player is not available.".to_string()))?;
     player.attach_surface(&surface);
 
-    let preferences = state.config().player;
     let playback = PlaybackPreferences {
         audio_language: Some(preferences.audio_language),
         subtitle_language: Some(preferences.subtitle_language),

@@ -111,7 +111,11 @@ unsafe impl Send for Vlc {}
 unsafe impl Sync for Vlc {}
 
 impl Vlc {
-    pub fn load(plugin_path: Option<&Path>, bundle_dir: Option<&Path>) -> Result<Self> {
+    pub fn load(
+        plugin_path: Option<&Path>,
+        bundle_dir: Option<&Path>,
+        options: &[String],
+    ) -> Result<Self> {
         if let Some(plugin_path) = plugin_path {
             std::env::set_var("VLC_PLUGIN_PATH", plugin_path);
         }
@@ -129,15 +133,17 @@ impl Vlc {
         };
         let fns = unsafe { VlcFns::load(&library)? };
 
-        let args = [
-            b"--no-video-title-show".as_slice(),
-            b"--quiet".as_slice(),
-        ];
-        let c_args: Vec<std::ffi::CString> = args
+        let mut args: Vec<std::ffi::CString> = ["--no-video-title-show", "--quiet"]
             .iter()
             .map(|arg| std::ffi::CString::new(*arg).expect("static args have no nul"))
             .collect();
-        let mut argv: Vec<*const c_char> = c_args.iter().map(|arg| arg.as_ptr()).collect();
+        for option in options {
+            let value = std::ffi::CString::new(option.as_str()).map_err(|_| {
+                AppError::Player(format!("libvlc option contains a null byte: {option}"))
+            })?;
+            args.push(value);
+        }
+        let mut argv: Vec<*const c_char> = args.iter().map(|arg| arg.as_ptr()).collect();
         let instance = unsafe {
             (fns.libvlc_new)(argv.len() as c_int, argv.as_mut_ptr())
         };

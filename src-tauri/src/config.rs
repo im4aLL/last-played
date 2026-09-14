@@ -16,11 +16,14 @@ pub enum DbMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct PlayerPreferences {
     pub watched_threshold: u8,
     pub subtitle_language: String,
     pub audio_language: String,
+    /// Subtitle text scale as a percentage, matching libVLC's `sub-text-scale`
+    /// (valid range 10..=500, where 100 keeps the renderer's default size).
+    pub subtitle_scale: u16,
     pub volume: u8,
 }
 
@@ -30,6 +33,7 @@ impl Default for PlayerPreferences {
             watched_threshold: 90,
             subtitle_language: "en".to_string(),
             audio_language: "en".to_string(),
+            subtitle_scale: 100,
             volume: 100,
         }
     }
