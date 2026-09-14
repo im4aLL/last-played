@@ -179,7 +179,7 @@ pub async fn add_media_from_tmdb(
 #[tauri::command]
 pub async fn refresh_metadata(state: State<'_, AppState>, media_id: String) -> Result<AddedMedia> {
     let database = state.database().await?;
-    let connection = database.connect()?;
+    let connection = database.connect().await?;
     let item = media_repo::find_by_id(&connection, &media_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("media item {media_id}")))?;
@@ -192,7 +192,7 @@ pub async fn refresh_metadata(state: State<'_, AppState>, media_id: String) -> R
 
 async fn persist(state: &AppState, metadata: &MediaMetadata) -> Result<AddedMedia> {
     let database = state.database().await?;
-    let connection = database.connect()?;
+    let connection = database.connect().await?;
     let transaction =
         Transaction::new_unchecked(&connection, TransactionBehavior::Immediate).await?;
 
@@ -278,6 +278,7 @@ async fn persist(state: &AppState, metadata: &MediaMetadata) -> Result<AddedMedi
     }
 
     transaction.commit().await?;
+    state.trigger_sync().await;
 
     Ok(AddedMedia {
         id: media_id,

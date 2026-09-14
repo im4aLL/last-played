@@ -3,10 +3,11 @@ use std::sync::Mutex;
 
 use tokio::sync::Mutex as AsyncMutex;
 
-use crate::config::{self, AppConfig};
+use crate::config::{self, AppConfig, DbMode};
 use crate::db::Database;
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use crate::services::player::{NativeSurface, PlayerService};
+use crate::services::sync::SyncManager;
 
 pub struct AppState {
     config_path: PathBuf,
@@ -15,6 +16,7 @@ pub struct AppState {
     database: AsyncMutex<Option<Database>>,
     player: Mutex<Option<PlayerService>>,
     surface: Mutex<Option<NativeSurface>>,
+    sync: SyncManager,
 }
 
 impl AppState {
@@ -27,6 +29,7 @@ impl AppState {
             database: AsyncMutex::new(None),
             player: Mutex::new(None),
             surface: Mutex::new(None),
+            sync: SyncManager::new(),
         })
     }
 
@@ -53,6 +56,10 @@ impl AppState {
         self.db_path.clone()
     }
 
+    pub fn sync_manager(&self) -> &SyncManager {
+        &self.sync
+    }
+
     pub fn update_config(&self, update: impl FnOnce(&mut AppConfig)) -> Result<AppConfig> {
         let next = {
             let mut guard = self
@@ -72,9 +79,21 @@ impl AppState {
             return Ok(database.clone());
         }
 
-        let database = Database::open_local(&self.db_path).await?;
         let config = self.config();
-        let connection = database.connect()?;
+        let database = match config.db_mode {
+            Some(DbMode::Remote) => {
+                if config.turso_url.trim().is_empty() {
+                    return Err(AppError::Config(
+                        "Remote mode needs a Turso URL and auth token.".to_string(),
+                    ));
+                }
+                Database::open_remote(&self.db_path, &config.turso_url, &config.turso_auth_token)
+                    .await?
+            }
+            _ => Database::open_local(&self.db_path).await?,
+        };
+
+        let connection = database.connect().await?;
         crate::db::repositories::device::register(
             &connection,
             &config.device_id,
@@ -85,5 +104,28 @@ impl AppState {
 
         *guard = Some(database.clone());
         Ok(database)
+    }
+
+    /// Closes the cached handle so the next access reopens with the current mode.
+    pub async fn reset_database(&self) {
+        let mut guard = self.database.lock().await;
+        *guard = None;
+    }
+
+    /// Pushes local changes in the background after a meaningful write.
+    pub async fn trigger_sync(&self) {
+        let Ok(database) = self.database().await else {
+            return;
+        };
+        if !database.is_remote() {
+            return;
+        }
+
+        let sync = self.sync.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = crate::services::sync::run(&database, &sync, true).await {
+                eprintln!("background sync failed: {error}");
+            }
+        });
     }
 }

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { useSyncNow, useSyncStatus } from "@/features/sync/use-sync";
 import { testDbConnection } from "@/lib/api";
 import { LANGUAGE_OPTIONS, useAppConfig, type DbMode } from "@/lib/app-config";
 
@@ -103,6 +104,8 @@ export default function SettingsPage() {
     (state) => state.setPlayerPreferences,
   );
   const health = useAppConfig((state) => state.health);
+  const syncStatus = useSyncStatus();
+  const syncNow = useSyncNow();
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
@@ -224,10 +227,35 @@ export default function SettingsPage() {
           >
             {testing ? "Testing..." : "Test connection"}
           </Button>
+          {isRemote && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => syncNow.mutate()}
+              disabled={
+                syncNow.isPending || syncStatus.data?.state === "syncing"
+              }
+            >
+              {syncNow.isPending || syncStatus.data?.state === "syncing"
+                ? "Syncing..."
+                : "Sync now"}
+            </Button>
+          )}
           {testResult && (
             <span className="text-xs text-muted-foreground">{testResult}</span>
           )}
         </div>
+
+        {isRemote && syncStatus.data && (
+          <p className="text-xs text-muted-foreground">
+            {syncStatus.data.error
+              ? `Last sync failed: ${syncStatus.data.error}`
+              : syncStatus.data.lastSyncedAt
+                ? `Last synced ${new Date(syncStatus.data.lastSyncedAt).toLocaleString()}`
+                : "Not synced yet."}
+          </p>
+        )}
       </SectionCard>
 
       <SectionCard

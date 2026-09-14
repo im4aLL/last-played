@@ -28,6 +28,16 @@ export type DatabaseHealth = {
   schemaVersion: number;
 };
 
+export type SyncState = "idle" | "syncing" | "error";
+
+export type SyncStatus = {
+  enabled: boolean;
+  state: SyncState;
+  lastSyncedAt: number | null;
+  error: string | null;
+  pending: boolean;
+};
+
 export const LANGUAGE_OPTIONS = [
   { value: "en", label: "English" },
   { value: "es", label: "Spanish" },

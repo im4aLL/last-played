@@ -135,7 +135,7 @@ fn progress_for_media(rows: &[WatchProgress], item: &MediaItem) -> Option<WatchP
 
 #[tauri::command]
 pub async fn list_media(state: State<'_, AppState>) -> Result<Vec<MediaSummary>> {
-    let connection = state.database().await?.connect()?;
+    let connection = state.database().await?.connect().await?;
     let items = media_repo::list_all(&connection).await?;
     let progress = watch_repo::list_all(&connection).await?;
 
@@ -159,7 +159,7 @@ pub async fn list_media(state: State<'_, AppState>) -> Result<Vec<MediaSummary>>
 
 #[tauri::command]
 pub async fn get_media(state: State<'_, AppState>, media_id: String) -> Result<MediaDetail> {
-    let connection = state.database().await?.connect()?;
+    let connection = state.database().await?.connect().await?;
     let item = media_repo::find_by_id(&connection, &media_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("media item {media_id}")))?;

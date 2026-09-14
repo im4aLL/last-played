@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import SyncIndicator from "@/features/sync/sync-indicator";
 import { useSystemTheme } from "@/hooks/use-system-theme";
 import { useAppConfig } from "@/lib/app-config";
 
@@ -127,6 +128,9 @@ export default function AppShell() {
             <h1 className="font-heading text-sm font-medium">
               {sectionTitle(pathname)}
             </h1>
+            <div className="ml-auto flex items-center gap-1">
+              <SyncIndicator />
+            </div>
           </header>
 
           <div className="flex-1 overflow-y-auto">

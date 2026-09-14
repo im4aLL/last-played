@@ -40,7 +40,7 @@ pub async fn get_health(state: tauri::State<'_, AppState>) -> Result<DatabaseHea
 #[tauri::command]
 pub async fn test_db_connection(state: tauri::State<'_, AppState>) -> Result<DatabaseHealth> {
     let database = state.database().await?;
-    let connection = database.connect()?;
+    let connection = database.connect().await?;
     connection
         .query("SELECT 1", ())
         .await

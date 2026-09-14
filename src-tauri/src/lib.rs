@@ -24,6 +24,11 @@ pub fn run() {
                 data_dir.join(crate::db::DB_FILE_NAME),
             )?;
             app.manage(state);
+
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                crate::services::sync::background_loop(handle).await;
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -31,6 +36,8 @@ pub fn run() {
             commands::config::get_device_id,
             commands::config::save_config,
             commands::config::set_db_mode,
+            commands::sync::sync_now,
+            commands::sync::get_sync_status,
             commands::db::get_health,
             commands::db::test_db_connection,
             commands::media::search_tmdb,

@@ -55,7 +55,7 @@ pub async fn save_progress(
     position_seconds: f64,
     duration_seconds: f64,
 ) -> Result<WatchProgress> {
-    let connection = state.database().await?.connect()?;
+    let connection = state.database().await?.connect().await?;
     let episode_id = normalize_episode_id(episode_id);
     resolve_target(&connection, &media_id, episode_id.as_deref()).await?;
 
@@ -75,6 +75,7 @@ pub async fn save_progress(
         watched,
     };
     watch_repo::upsert(&connection, &progress).await?;
+    state.trigger_sync().await;
     Ok(progress)
 }
 
@@ -84,7 +85,7 @@ pub async fn get_progress(
     media_id: String,
     episode_id: Option<String>,
 ) -> Result<Option<WatchProgress>> {
-    let connection = state.database().await?.connect()?;
+    let connection = state.database().await?.connect().await?;
     let episode_id = normalize_episode_id(episode_id);
     watch_repo::find(&connection, &media_id, episode_id.as_deref()).await
 }
@@ -96,7 +97,7 @@ pub async fn set_watched(
     episode_id: Option<String>,
     watched: bool,
 ) -> Result<WatchProgress> {
-    let connection = state.database().await?.connect()?;
+    let connection = state.database().await?.connect().await?;
     let episode_id = normalize_episode_id(episode_id);
     resolve_target(&connection, &media_id, episode_id.as_deref()).await?;
 
@@ -118,12 +119,13 @@ pub async fn set_watched(
         watched,
     };
     watch_repo::upsert(&connection, &progress).await?;
+    state.trigger_sync().await;
     Ok(progress)
 }
 
 #[tauri::command]
 pub async fn continue_watching(state: State<'_, AppState>) -> Result<Vec<MediaSummary>> {
-    let connection = state.database().await?.connect()?;
+    let connection = state.database().await?.connect().await?;
     let rows = watch_repo::list_in_progress(&connection, CONTINUE_WATCHING_LIMIT).await?;
     let items = media_repo::list_all(&connection).await?;
 

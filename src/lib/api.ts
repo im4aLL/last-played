@@ -4,6 +4,7 @@ import type {
   ConfigInput,
   DatabaseHealth,
   DbMode,
+  SyncStatus,
 } from "./app-config";
 import type {
   AddedMedia,
@@ -45,6 +46,14 @@ export function getHealth(): Promise<DatabaseHealth> {
 
 export function testDbConnection(): Promise<DatabaseHealth> {
   return invoke<DatabaseHealth>("test_db_connection");
+}
+
+export function syncNow(): Promise<SyncStatus> {
+  return invoke<SyncStatus>("sync_now");
+}
+
+export function getSyncStatus(): Promise<SyncStatus> {
+  return invoke<SyncStatus>("get_sync_status");
 }
 
 export function getDeviceId(): Promise<string> {

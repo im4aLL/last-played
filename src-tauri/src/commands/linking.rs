@@ -66,7 +66,7 @@ async fn link_file(
 
     let (size_bytes, mtime, container) = probe_file(path)?;
     let database = state.database().await?;
-    let connection = database.connect()?;
+    let connection = database.connect().await?;
 
     let file = VideoFile {
         id: Uuid::new_v4().to_string(),
@@ -80,6 +80,7 @@ async fn link_file(
     };
 
     video_file_repo::replace_for_target(&connection, &file).await?;
+    state.trigger_sync().await;
     Ok(file.into())
 }
 
@@ -90,7 +91,7 @@ pub async fn link_movie_file(
     path: String,
 ) -> Result<VideoFileInfo> {
     let database = state.database().await?;
-    let connection = database.connect()?;
+    let connection = database.connect().await?;
     let item = media_repo::find_by_id(&connection, &media_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("media item {media_id}")))?;
@@ -111,7 +112,7 @@ pub async fn link_episode_file(
     path: String,
 ) -> Result<VideoFileInfo> {
     let database = state.database().await?;
-    let connection = database.connect()?;
+    let connection = database.connect().await?;
     let episode = episode_repo::find_by_id(&connection, &episode_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("episode {episode_id}")))?;
@@ -122,6 +123,8 @@ pub async fn link_episode_file(
 #[tauri::command]
 pub async fn unlink_video_file(state: State<'_, AppState>, video_file_id: String) -> Result<()> {
     let database = state.database().await?;
-    let connection = database.connect()?;
-    video_file_repo::delete(&connection, &video_file_id, &state.config().device_id).await
+    let connection = database.connect().await?;
+    video_file_repo::delete(&connection, &video_file_id, &state.config().device_id).await?;
+    state.trigger_sync().await;
+    Ok(())
 }

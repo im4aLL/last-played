@@ -5,4 +5,5 @@ pub mod linking;
 pub mod media;
 pub mod player;
 pub mod scan;
+pub mod sync;
 pub mod watch;

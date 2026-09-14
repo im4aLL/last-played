@@ -111,7 +111,7 @@ pub async fn scan_series_folder(
     media_id: String,
     folder: String,
 ) -> Result<ScanProposal> {
-    let connection = state.database().await?.connect()?;
+    let connection = state.database().await?.connect().await?;
     let item = media_repo::find_by_id(&connection, &media_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("media item {media_id}")))?;
@@ -228,7 +228,7 @@ pub async fn apply_scan_matches(
     matches: Vec<ScanMatchInput>,
 ) -> Result<AppliedScan> {
     let database = state.database().await?;
-    let connection = database.connect()?;
+    let connection = database.connect().await?;
     let item = media_repo::find_by_id(&connection, &media_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("media item {media_id}")))?;
@@ -284,6 +284,7 @@ pub async fn apply_scan_matches(
     }
 
     transaction.commit().await?;
+    state.trigger_sync().await;
 
     Ok(AppliedScan {
         linked: matches.len(),
