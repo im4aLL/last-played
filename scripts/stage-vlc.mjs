@@ -9,6 +9,7 @@
 // their notices, and allow relinking. See docs/PACKAGING.md.
 
 import {
+  copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -126,7 +127,14 @@ for (const name of libraries) {
   const from = join(source, name);
   const fromLib = join(libDir, name);
   const resolved = existsSync(from) ? from : fromLib;
-  cpSync(resolved, join(destLibDir, name), { dereference: true });
+  const dest = join(destLibDir, name);
+  // cpSync treats symlinked files as directories on some Node versions,
+  // so copy regular files (including symlinks to files) with copyFileSync.
+  if (statSync(resolved).isDirectory()) {
+    cpSync(resolved, dest, { recursive: true, dereference: true });
+  } else {
+    copyFileSync(resolved, dest);
+  }
 }
 
 const plugins = findPlugins(source);
