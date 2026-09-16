@@ -21,6 +21,10 @@ Do not commit the staged binaries; `src-tauri/vlc/*` is ignored except the place
 
 Icons live in `src-tauri/icons` and are referenced by `bundle.icon`. `tauri.conf.json` sets the product name, version, identifier, category, descriptions, copyright, and the macOS minimum system version (10.15). Keep `productName` and `identifier` stable: the app config and data directories derive from the identifier.
 
+## macOS DMG installer window
+
+The DMG installer window uses a custom background so it never renders the stock layout: `src-tauri/dmg-background.png` (exactly 660x400, matching `bundle.macOS.dmg.windowSize`), referenced by `bundle.macOS.dmg.background` in `tauri.conf.json`. The artwork keeps the caption below the icon labels for the default icon positions (app at 180,170 and Applications at 480,170), so if you move those positions you must redraw the background to match. Rebuild the DMG with `npm run tauri build -- --bundles dmg` and open it to verify the window.
+
 ## macOS signing and notarization
 
 The app bundle contains the app binary plus the libVLC libraries and plugins, all of which must be signed. Nested code must be signed before the outer bundle.
