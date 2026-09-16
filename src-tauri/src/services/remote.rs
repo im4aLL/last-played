@@ -3,6 +3,13 @@
 //! Remote mode keeps the local SQLite file as the working database and talks
 //! to the remote database through its `/v2/pipeline` HTTP API. This avoids the
 //! pre-1.0 embedded replica/sync engine while keeping the app offline-first.
+//!
+//! The shared HTTP client uses short per-request timeouts (5s connect,
+//! 10s total) so an unreachable host fails fast instead of hanging sync,
+//! and remote failures are offline-safe: callers keep the queued `dirty`
+//! flag and retry on the next tick or reconnect.
+
+use std::time::Duration;
 
 use serde_json::{json, Value as JsonValue};
 use turso::Value;
@@ -18,7 +25,11 @@ pub struct RemoteClient {
 impl RemoteClient {
     pub fn new(raw_url: &str, auth_token: &str) -> Result<Self> {
         let base = normalize_url(raw_url)?;
-        let http = reqwest::Client::builder().build().map_err(|error| {
+        let http = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|error| {
             AppError::Database(format!("could not create HTTP client: {error}"))
         })?;
 

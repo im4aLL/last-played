@@ -6,10 +6,11 @@ import {
   Search,
   TriangleAlert,
 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "cn";
 import EmptyState from "@/components/app/empty-state";
+import OfflineNotice from "@/components/app/offline-notice";
 import PosterArt from "@/components/app/poster-art";
 import RatingBadge from "@/components/app/rating-badge";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { addMediaFromTmdb, previewTmdbMedia, searchTmdb } from "@/lib/api";
 import { useAppConfig } from "@/lib/app-config";
+import { selectAddOnline, useConnection } from "@/lib/connection";
 import { errorMessage } from "@/lib/errors";
 import { formatAirDate, formatCount, formatRuntime } from "@/lib/format";
 import type { AddedMedia, MediaPreview, TmdbSearchResult } from "@/lib/types";
@@ -40,21 +42,29 @@ function SearchResultCard({
   result,
   active,
   onSelect,
+  disabled,
 }: {
   result: TmdbSearchResult;
   active: boolean;
   onSelect: (result: TmdbSearchResult) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={() => onSelect(result)}
+      onClick={() => {
+        if (disabled) return;
+        onSelect(result);
+      }}
       aria-pressed={active}
+      disabled={disabled}
+      aria-disabled={disabled}
       className={cn(
         "flex flex-col overflow-hidden rounded-xl border text-left transition-colors",
         active
           ? "border-primary bg-primary/5 ring-2 ring-primary/30"
           : "border-border hover:bg-muted",
+        disabled && "opacity-60",
       )}
     >
       <PosterArt
@@ -67,6 +77,9 @@ function SearchResultCard({
         <span className="font-heading line-clamp-2 leading-snug font-semibold">
           {result.title}
         </span>
+        {disabled && (
+          <span className="text-xs text-muted-foreground">Offline</span>
+        )}
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="shrink-0 capitalize">
             {result.mediaType === "tv" ? "TV" : "Movie"}
@@ -158,6 +171,7 @@ function PreviewPanel({
   addError: string | null;
   onConfirm: () => void;
 }) {
+  const online = useConnection(selectAddOnline);
   const meta = [
     preview.year != null ? String(preview.year) : null,
     preview.mediaType === "tv" ? "TV Series" : "Movie",
@@ -210,7 +224,7 @@ function PreviewPanel({
           </p>
         )}
 
-        <Button type="button" onClick={onConfirm} disabled={adding}>
+        <Button type="button" onClick={onConfirm} disabled={adding || !online}>
           {adding ? (
             <>
               <Loader2 className="animate-spin" />
@@ -272,6 +286,8 @@ function AddedPanel({
 export default function AddMediaPage() {
   const tmdbApiKey = useAppConfig((state) => state.tmdbApiKey);
   const queryClient = useQueryClient();
+  const online = useConnection(selectAddOnline);
+  const tryAnyway = useConnection((state) => state.tryAnyway);
 
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState<SearchState>({ status: "idle" });
@@ -281,8 +297,15 @@ export default function AddMediaPage() {
   const [addError, setAddError] = useState<string | null>(null);
   const [added, setAdded] = useState<AddedMedia | null>(null);
 
+  useEffect(() => {
+    return () => {
+      useConnection.getState().clearOverride("add");
+    };
+  }, []);
+
   const handleSearch = async (event: FormEvent) => {
     event.preventDefault();
+    if (!online) return;
     if (query.trim().length === 0) return;
 
     setSearch({ status: "loading" });
@@ -300,6 +323,7 @@ export default function AddMediaPage() {
   };
 
   const handleSelect = async (result: TmdbSearchResult) => {
+    if (!online) return;
     setSelected(result);
     setAdded(null);
     setAddError(null);
@@ -315,6 +339,7 @@ export default function AddMediaPage() {
 
   const handleConfirm = async () => {
     if (!selected) return;
+    if (!online) return;
     setAdding(true);
     setAddError(null);
 
@@ -330,6 +355,7 @@ export default function AddMediaPage() {
       setAddError(errorMessage(cause));
     } finally {
       setAdding(false);
+      useConnection.getState().clearOverride("add");
     }
   };
 
@@ -351,6 +377,13 @@ export default function AddMediaPage() {
         </p>
       </header>
 
+      {!online && (
+        <OfflineNotice
+          message="No internet connection, can't add media right now."
+          onTryAnyway={() => tryAnyway("add")}
+        />
+      )}
+
       {!tmdbApiKey ? (
         <EmptyState
           icon={TriangleAlert}
@@ -370,8 +403,12 @@ export default function AddMediaPage() {
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search movies and TV shows"
               aria-label="Search TMDB"
+              disabled={!online}
             />
-            <Button type="submit" disabled={search.status === "loading"}>
+            <Button
+              type="submit"
+              disabled={search.status === "loading" || !online}
+            >
               {search.status === "loading" ? (
                 <Loader2 className="animate-spin" />
               ) : (
@@ -425,6 +462,7 @@ export default function AddMediaPage() {
                             selected.mediaType === result.mediaType
                           }
                           onSelect={handleSelect}
+                          disabled={!online}
                         />
                       ))}
                     </div>

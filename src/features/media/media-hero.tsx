@@ -10,6 +10,7 @@ import ScanFolderButton from "@/features/linking/scan-folder-button";
 import RefreshMetadataButton from "@/features/media/refresh-metadata-button";
 import { useSetWatched } from "@/features/media/use-watched";
 import { formatCount, formatRuntime } from "@/lib/format";
+import { selectOnline, useConnection } from "@/lib/connection";
 import { posterHue } from "@/lib/poster";
 import { progressRatio, type MediaDetail } from "@/lib/types";
 
@@ -18,6 +19,7 @@ type MediaHeroProps = {
 };
 
 export default function MediaHero({ detail }: MediaHeroProps) {
+  const online = useConnection(selectOnline);
   const runtime = formatRuntime(detail.runtimeMinutes);
   const episodeCount = detail.seasons.reduce(
     (total, season) => total + season.episodes.length,
@@ -50,7 +52,7 @@ export default function MediaHero({ detail }: MediaHeroProps) {
   return (
     <section className="relative">
       <div className="relative h-96 overflow-hidden bg-muted md:h-[30rem] lg:h-[34rem]">
-        {detail.backdropUrl ? (
+        {detail.backdropUrl && online ? (
           <img
             src={detail.backdropUrl}
             alt=""

@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAppConfig } from "@/lib/app-config";
+import { selectOnline, useConnection } from "@/lib/connection";
 import { useSyncNow, useSyncStatus } from "./use-sync";
 
 function formatRelative(timestamp: number): string {
@@ -20,6 +21,7 @@ function formatRelative(timestamp: number): string {
 
 export default function SyncIndicator() {
   const dbMode = useAppConfig((state) => state.dbMode);
+  const online = useConnection(selectOnline);
   const status = useSyncStatus();
   const syncNow = useSyncNow();
 
@@ -60,10 +62,17 @@ export default function SyncIndicator() {
           type="button"
           variant="ghost"
           size="sm"
-          className="h-8 gap-2 text-xs text-muted-foreground"
-          onClick={() => syncNow.mutate()}
-          disabled={syncing}
-          aria-label={`${label}. Sync now`}
+          className="h-8 gap-2 text-xs text-muted-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          onClick={() => {
+            if (!online || syncing) return;
+            syncNow.mutate();
+          }}
+          aria-disabled={!online || syncing}
+          aria-label={
+            online
+              ? `${label}. Sync now`
+              : `${label}. Sync paused while offline`
+          }
         >
           {icon}
           <span className="hidden md:inline">{label}</span>
@@ -71,7 +80,9 @@ export default function SyncIndicator() {
       </TooltipTrigger>
       <TooltipContent>
         <p>{detail}</p>
-        <p className="text-muted-foreground">Click to sync now</p>
+        <p className="text-muted-foreground">
+          {online ? "Click to sync now" : "Sync paused while offline"}
+        </p>
       </TooltipContent>
     </Tooltip>
   );

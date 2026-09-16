@@ -58,6 +58,14 @@ export function getSyncStatus(): Promise<SyncStatus> {
   return invoke<SyncStatus>("get_sync_status");
 }
 
+export function setOnlineState(
+  online: boolean,
+  session: string,
+  seq: number,
+): Promise<void> {
+  return invoke<void>("set_online_state", { online, session, seq });
+}
+
 export function getDeviceId(): Promise<string> {
   return invoke<string>("get_device_id");
 }

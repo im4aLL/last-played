@@ -167,16 +167,37 @@ impl Default for RuntimeState {
     }
 }
 
+/// Owns sync coordination: coalescing, queued-work tracking, runtime status,
+/// and the fail-closed connectivity gate.
+///
+/// Connectivity is stored as a single-locked `(online, session, seq)` triple
+/// under one `Mutex` (default `(false, "", 0)`, fail-closed). `set_online`
+/// adopts any new session epoch unconditionally and otherwise applies only
+/// pushes with `seq >= stored_seq`, ignoring stale arrivals within the same
+/// session. One critical section (not split atomics) means two rapid flaps
+/// cannot interleave check and store to leave a stale value stuck. A skipped
+/// sync stays `dirty`, so no queued work is lost.
 #[derive(Clone, Default)]
 pub struct SyncManager {
     inner: Arc<SyncInner>,
 }
 
-#[derive(Default)]
 struct SyncInner {
     running: AtomicBool,
     dirty: AtomicBool,
+    online_state: Mutex<(bool, String, u64)>,
     runtime: Mutex<RuntimeState>,
+}
+
+impl Default for SyncInner {
+    fn default() -> Self {
+        Self {
+            running: AtomicBool::new(false),
+            dirty: AtomicBool::new(false),
+            online_state: Mutex::new((false, String::new(), 0)),
+            runtime: Mutex::new(RuntimeState::default()),
+        }
+    }
 }
 
 impl SyncManager {
@@ -190,6 +211,37 @@ impl SyncManager {
 
     pub fn is_dirty(&self) -> bool {
         self.inner.dirty.load(Ordering::SeqCst)
+    }
+
+    /// Records the frontend-reported connectivity, ordered by
+    /// `(session, seq)`. A new session epoch is always adopted; within the
+    /// same session, stale arrivals (`seq < stored_seq`) are ignored.
+    /// Returns the previous online value, or `None` when stale.
+    pub fn set_online(&self, online: bool, session: &str, seq: u64) -> Option<bool> {
+        let mut state = self
+            .inner
+            .online_state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if session != state.1 {
+            let previous = state.0;
+            *state = (online, session.to_string(), seq);
+            return Some(previous);
+        }
+        if seq < state.2 {
+            return None;
+        }
+        let previous = state.0;
+        *state = (online, session.to_string(), seq);
+        Some(previous)
+    }
+
+    pub fn is_online(&self) -> bool {
+        self.inner
+            .online_state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .0
     }
 
     fn clear_dirty(&self) {
@@ -249,6 +301,11 @@ pub async fn run(database: &Database, sync: &SyncManager, device_id: &str) -> Re
     let Some(remote) = database.remote() else {
         return Ok(());
     };
+
+    if !sync.is_online() {
+        sync.mark_dirty();
+        return Ok(());
+    }
 
     if !sync.begin() {
         sync.mark_dirty();
@@ -717,6 +774,9 @@ pub async fn background_loop(app: AppHandle) {
         let state = app.state::<AppState>();
         let config = state.config();
         if config.db_mode != Some(DbMode::Remote) {
+            continue;
+        }
+        if !state.sync_manager().is_online() {
             continue;
         }
 

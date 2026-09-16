@@ -120,7 +120,7 @@ flowchart TB
 - `config.json` path + in-memory `AppConfig` (Mutex)
 - lazy `Database` handle (async Mutex, reset on mode switch)
 - `PlayerService` + `NativeSurface` (Mutex)
-- `SyncManager` (atomic dirty/running flags + runtime status)
+- `SyncManager` (atomic dirty/running flags + single-locked online state + runtime status)
 
 `database()` opens local Turso always, then adds a `RemoteClient` only in remote mode. This keeps offline-first behavior identical in both modes.
 
@@ -260,9 +260,10 @@ sequenceDiagram
     Remote-->>Mgr: finish_ok(last_synced_at) or finish_err(error)
 ```
 
-- Both modes use the same local file. Remote mode adds reconciliation through `RemoteClient` (Turso HTTP API).
+- Both modes use the same local file. Remote mode adds reconciliation through `RemoteClient` (Turso HTTP API), which uses short per-request timeouts (5s connect, 10s total) so an unreachable host fails fast.
 - Schema drift is handled by copying `sqlite_master` DDL to remote with `IF NOT EXISTS`, then `ALTER TABLE ADD COLUMN` for missing columns.
 - Overlapping runs are coalesced: `begin()` CAS guard, `dirty` flag retained so the next tick retries.
+- Offline gating: `SyncManager` stores a single-locked `(online, session, seq)` triple (default offline, fail-closed). `run()` skips sync while offline and preserves `dirty` so queued work syncs on reconnect; `background_loop` early-continues while offline to avoid opening the DB. The frontend `ConnectionMonitor` pushes the raw `navigator.onLine` value via `set_online_state` on mount and on every change with a per-mount session epoch plus a monotonic integer `seq`; a new session is always adopted, otherwise only the latest `seq` wins, and the reconnect trigger runs only when `is_dirty()`.
 
 ## Config and startup
 

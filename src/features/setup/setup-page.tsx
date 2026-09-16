@@ -3,9 +3,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "cn";
 import SettingField from "@/components/app/setting-field";
+import OfflineNotice from "@/components/app/offline-notice";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppConfig, type DbMode } from "@/lib/app-config";
+import { selectOnline, useConnection } from "@/lib/connection";
 import { errorMessage } from "@/lib/errors";
 
 const MODE_OPTIONS: {
@@ -73,8 +75,10 @@ export default function SetupPage() {
   const [mode, setMode] = useState<DbMode>("local");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const online = useConnection(selectOnline);
 
   const handleContinue = async () => {
+    if (mode === "remote" && !online) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -153,6 +157,10 @@ export default function SetupPage() {
           </div>
         )}
 
+        {mode === "remote" && !online && (
+          <OfflineNotice message="No internet connection" />
+        )}
+
         {error && (
           <p
             role="alert"
@@ -163,7 +171,10 @@ export default function SetupPage() {
         )}
 
         <div className="flex justify-end">
-          <Button onClick={handleContinue} disabled={submitting}>
+          <Button
+            onClick={handleContinue}
+            disabled={submitting || (mode === "remote" && !online)}
+          >
             {submitting ? "Setting up..." : "Continue"}
           </Button>
         </div>

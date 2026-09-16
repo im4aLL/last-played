@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import EpisodeStatus from "@/features/media/episode-status";
 import { cn } from "cn";
 import { formatAirDate, formatRuntime } from "@/lib/format";
+import { selectOnline, useConnection } from "@/lib/connection";
 import { posterHue } from "@/lib/poster";
 import { progressRatio, type Episode } from "@/lib/types";
 
@@ -23,6 +24,7 @@ function EpisodeRow({
   const ratio = progressRatio(episode.progress);
   const runtime = formatRuntime(episode.runtimeMinutes);
   const airDate = formatAirDate(episode.airDate);
+  const online = useConnection(selectOnline);
   const hue = posterHue(episode.name);
   const showProgress = ratio != null && ratio > 0;
   const resumable = showProgress && !episode.progress?.watched;
@@ -31,7 +33,7 @@ function EpisodeRow({
   return (
     <li className="flex flex-col gap-2 py-4 sm:flex-row sm:items-start sm:gap-4">
       <div className="group relative hidden aspect-video w-36 shrink-0 overflow-hidden rounded-md bg-muted ring-1 ring-foreground/10 sm:block">
-        {episode.stillUrl ? (
+        {episode.stillUrl && online ? (
           <img
             src={episode.stillUrl}
             alt=""

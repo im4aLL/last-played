@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import AppShell from "@/components/app/app-shell";
+import ConnectionMonitor from "@/components/app/connection-monitor";
 import AboutPage from "@/features/about/about-page";
 import LibraryPage from "@/features/library/library-page";
 import AddMediaPage from "@/features/media/add-media-page";
@@ -73,6 +74,7 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ConnectionMonitor />
       <RouterProvider router={router} />
     </QueryClientProvider>
   );

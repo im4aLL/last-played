@@ -1,5 +1,6 @@
 import { Database, KeyRound, MonitorPlay, UserRound } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import OfflineNotice from "@/components/app/offline-notice";
 import SettingField from "@/components/app/setting-field";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,11 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { useSyncNow, useSyncStatus } from "@/features/sync/use-sync";
 import { testDbConnection } from "@/lib/api";
+import {
+  selectOnline,
+  selectTestOnline,
+  useConnection,
+} from "@/lib/connection";
 import {
   LANGUAGE_OPTIONS,
   SUBTITLE_FONT_OPTIONS,
@@ -116,11 +122,21 @@ export default function SettingsPage() {
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const online = useConnection(selectOnline);
+  const testOnline = useConnection(selectTestOnline);
+  const tryAnyway = useConnection((state) => state.tryAnyway);
+
+  useEffect(() => {
+    return () => {
+      useConnection.getState().clearOverride("test");
+    };
+  }, []);
 
   const mode = dbMode ?? "local";
   const isRemote = mode === "remote";
 
   const handleTestConnection = async () => {
+    if (!testOnline) return;
     setTesting(true);
     setTestResult(null);
     try {
@@ -130,6 +146,7 @@ export default function SettingsPage() {
       setTestResult(errorMessage(cause));
     } finally {
       setTesting(false);
+      useConnection.getState().clearOverride("test");
     }
   };
 
@@ -248,7 +265,7 @@ export default function SettingsPage() {
             variant="outline"
             size="sm"
             onClick={handleTestConnection}
-            disabled={testing}
+            disabled={testing || !testOnline}
           >
             {testing ? "Testing..." : "Test connection"}
           </Button>
@@ -257,9 +274,14 @@ export default function SettingsPage() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => syncNow.mutate()}
+              onClick={() => {
+                if (!online) return;
+                syncNow.mutate();
+              }}
               disabled={
-                syncNow.isPending || syncStatus.data?.state === "syncing"
+                syncNow.isPending ||
+                syncStatus.data?.state === "syncing" ||
+                !online
               }
             >
               {syncNow.isPending || syncStatus.data?.state === "syncing"
@@ -271,6 +293,17 @@ export default function SettingsPage() {
             <span className="text-xs text-muted-foreground">{testResult}</span>
           )}
         </div>
+
+        {!testOnline && (
+          <OfflineNotice
+            message="No internet connection"
+            onTryAnyway={() => tryAnyway("test")}
+          />
+        )}
+
+        {isRemote && !online && (
+          <OfflineNotice message="No internet connection, sync is paused." />
+        )}
 
         {isRemote && syncStatus.data && (
           <p className="text-xs text-muted-foreground">

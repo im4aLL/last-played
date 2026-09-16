@@ -1,6 +1,7 @@
 import { Film, Tv, type LucideIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { cn } from "cn";
+import { selectOnline, useConnection } from "@/lib/connection";
 import { posterHue } from "@/lib/poster";
 import type { MediaType } from "@/lib/types";
 
@@ -25,9 +26,10 @@ export default function PosterArt({
   children,
 }: PosterArtProps) {
   const [imageFailed, setImageFailed] = useState(false);
+  const online = useConnection(selectOnline);
   const Icon = MEDIA_ICONS[mediaType];
   const hue = posterHue(title);
-  const showImage = Boolean(posterUrl) && !imageFailed;
+  const showImage = Boolean(posterUrl) && !imageFailed && online;
 
   return (
     <div

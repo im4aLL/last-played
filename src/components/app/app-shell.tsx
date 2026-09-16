@@ -32,6 +32,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppLogo from "@/components/app/app-logo";
+import OfflineIndicator from "@/components/app/offline-indicator";
 import SyncIndicator from "@/features/sync/sync-indicator";
 import ThemeToggle from "@/components/app/theme-toggle";
 import { useMedia } from "@/features/media/use-media";
@@ -152,6 +153,7 @@ export default function AppShell() {
             </h1>
             <div className="ml-auto flex items-center gap-1">
               <ThemeToggle />
+              <OfflineIndicator />
               <SyncIndicator />
             </div>
           </header>

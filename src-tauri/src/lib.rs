@@ -40,6 +40,7 @@ pub fn run() {
             commands::config::set_db_mode,
             commands::sync::sync_now,
             commands::sync::get_sync_status,
+            commands::sync::set_online_state,
             commands::db::get_health,
             commands::db::test_db_connection,
             commands::media::search_tmdb,
