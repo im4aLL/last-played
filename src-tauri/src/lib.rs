@@ -47,6 +47,7 @@ pub fn run() {
             commands::media::preview_tmdb_media,
             commands::media::add_media_from_tmdb,
             commands::media::refresh_metadata,
+            commands::media::delete_media,
             commands::library::list_media,
             commands::library::get_media,
             commands::watch::save_progress,

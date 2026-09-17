@@ -186,6 +186,7 @@ Notes:
 - `video_file.path` is an opaque device-local string, always scoped by `device_id`. Sync pushes only this device's rows and never pulls other devices' paths.
 - `watch_progress.target_id` is the media id for movies and the episode id for TV. `watched` flips when position passes `watchedThreshold` (default 90 percent).
 - Sync tables use last-write-wins on `updated_at` (`media_item`, `watch_progress`). Catalog tables (`season`, `episode`, `device`) are insert-if-missing.
+- Deletes converge via `deleted_media(id, deleted_at)` tombstones, synced before other tables and applied on both sides. Offline deletes succeed locally and converge on reconnect; every device must sync at least once to observe a removal. Tombstones are retained (no GC yet).
 
 ## Player flow
 
@@ -253,6 +254,7 @@ sequenceDiagram
     participant Remote as Turso Cloud HTTP
 
     Writer->>Mgr: mark_dirty() + trigger_sync()
+    Mgr->>Remote: sync deleted_media tombstones + apply deletes
     Mgr->>Remote: reconcile tables LWW
     Mgr->>Remote: push this device video_file only
     Loop->>Mgr: tick every 30s if dbMode == remote

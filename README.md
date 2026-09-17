@@ -4,6 +4,44 @@ Track and resume your local movie and TV library.
 
 Last Played is a Tauri 2 desktop app (React + TypeScript frontend, Rust backend). Point it at local video files, pull metadata and artwork from TMDB, play anything through an embedded libVLC, and keep watch progress in sync across devices with Turso.
 
+## Screenshots
+
+![Library with Continue Watching and Recently Added](screenshots/library.png)
+
+Library in dark mode with search, type and watch-state filters, Continue Watching, and Recently Added rows.
+
+![TMDB search results](screenshots/search-media.png)
+
+Add media via TMDB search with poster grid, type, year, and rating before import.
+
+![TMDB preview before import](screenshots/add-media.png)
+
+Add media preview panel with synopsis, season breakdown, and Add to library confirm.
+
+![Series detail with episodes and file links](screenshots/single-media.png)
+
+Series detail with hero, resume point, season selector, and per-episode Play state plus linked local files.
+
+![Series folder scan results](screenshots/import.png)
+
+Series-folder scan with high-confidence matches ready to link and non-video files listed as ignored.
+
+![Native playback](screenshots/video-player.png)
+
+Native playback with seek bar, audio and subtitle track pickers, playback rate, volume, and fullscreen controls.
+
+![Player episode list](screenshots/episode-list.png)
+
+Player episode drawer for switching episodes across seasons without leaving playback.
+
+![Keyboard shortcuts](screenshots/keyboard-shortcut.png)
+
+Keyboard shortcuts cheat sheet for playback, episodes, tracks, and window controls.
+
+![Library in light mode](screenshots/theme-light.png)
+
+Library in light mode with All Movies and All Shows rows and sidebar navigation.
+
 ## Features
 
 - Library with search, type filter (all / movie / TV), watch-state filter, and sort (recent / title), plus Continue Watching
@@ -88,6 +126,7 @@ Remote sync notes:
 
 - Same local file works offline. Remote mode only adds reconciliation via Turso HTTP API.
 - `video_file` rows are device-local: only this device's links are pushed, other devices show those titles as unlinked.
+- Deletes propagate via a `deleted_media` tombstone table: an offline delete succeeds locally and converges on reconnect, and every device must sync at least once to observe a removal. Tombstones are retained (no GC yet).
 - TMDB key and Turso token stay in `config.json`, never in the DB.
 
 ## Recommended IDE setup

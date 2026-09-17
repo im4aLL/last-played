@@ -91,6 +91,11 @@ const CREATE_WATCH_PROGRESS_TABLE: &[&str] = &[
 const ADD_MEDIA_ITEM_VOTE_AVERAGE: &[&str] =
     &["ALTER TABLE media_item ADD COLUMN vote_average REAL"];
 
+const CREATE_DELETED_MEDIA_TABLE: &[&str] = &["CREATE TABLE deleted_media (
+    id TEXT PRIMARY KEY,
+    deleted_at TEXT NOT NULL
+)"];
+
 pub const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
@@ -111,6 +116,11 @@ pub const MIGRATIONS: &[Migration] = &[
         version: 4,
         name: "add_media_item_vote_average",
         statements: ADD_MEDIA_ITEM_VOTE_AVERAGE,
+    },
+    Migration {
+        version: 5,
+        name: "create_deleted_media",
+        statements: CREATE_DELETED_MEDIA_TABLE,
     },
 ];
 

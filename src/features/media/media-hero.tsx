@@ -1,4 +1,4 @@
-import { Check, Play, Undo2 } from "lucide-react";
+import { Check, Play, Trash2, Undo2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import PosterArt from "@/components/app/poster-art";
 import RatingBadge from "@/components/app/rating-badge";
@@ -16,9 +16,10 @@ import { progressRatio, type MediaDetail } from "@/lib/types";
 
 type MediaHeroProps = {
   detail: MediaDetail;
+  onRemove: () => void;
 };
 
-export default function MediaHero({ detail }: MediaHeroProps) {
+export default function MediaHero({ detail, onRemove }: MediaHeroProps) {
   const online = useConnection(selectOnline);
   const runtime = formatRuntime(detail.runtimeMinutes);
   const episodeCount = detail.seasons.reduce(
@@ -149,6 +150,16 @@ export default function MediaHero({ detail }: MediaHeroProps) {
               )}
 
               <RefreshMetadataButton mediaId={detail.id} className="ml-auto" />
+
+              <Button
+                type="button"
+                variant="destructive"
+                size="lg"
+                onClick={onRemove}
+              >
+                <Trash2 />
+                Remove
+              </Button>
             </div>
           </div>
         </div>

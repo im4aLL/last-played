@@ -1,11 +1,14 @@
 import { TriangleAlert, Tv } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import EmptyState from "@/components/app/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import MediaHero from "@/features/media/media-hero";
+import RemoveMediaDialog from "@/features/media/remove-media-dialog";
 import SeasonSection from "@/features/media/season-section";
 import { useMedia } from "@/features/media/use-media";
+import { useRemoveMedia } from "@/features/media/use-remove-media";
 
 function MediaDetailSkeleton() {
   return (
@@ -28,7 +31,10 @@ function MediaDetailSkeleton() {
 
 export default function MediaPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { status, detail, error, reload } = useMedia(id ?? "");
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const removeMedia = useRemoveMedia();
 
   if (status === "loading") {
     return <MediaDetailSkeleton />;
@@ -53,11 +59,16 @@ export default function MediaPage() {
 
   return (
     <div className="pb-10">
-      <MediaHero detail={detail} />
+      <MediaHero detail={detail} onRemove={() => setRemoveOpen(true)} />
 
       {detail.type === "tv" && detail.seasons.length > 0 && (
         <div className="mt-8 px-6 md:px-8">
-          <SeasonSection mediaId={detail.id} seasons={detail.seasons} />
+          <SeasonSection
+            key={detail.id}
+            mediaId={detail.id}
+            seasons={detail.seasons}
+            resumeEpisodeId={detail.resume?.episodeId ?? null}
+          />
         </div>
       )}
 
@@ -70,6 +81,29 @@ export default function MediaPage() {
           />
         </div>
       )}
+
+      <RemoveMediaDialog
+        open={removeOpen}
+        onOpenChange={(open) => {
+          if (!removeMedia.isPending) {
+            setRemoveOpen(open);
+            if (!open) {
+              removeMedia.reset();
+            }
+          }
+        }}
+        title={detail.title}
+        isPending={removeMedia.isPending}
+        error={removeMedia.isError ? removeMedia.error : null}
+        onConfirm={() => {
+          removeMedia.mutate(detail.id, {
+            onSuccess: () => {
+              setRemoveOpen(false);
+              void navigate("/", { replace: true });
+            },
+          });
+        }}
+      />
     </div>
   );
 }

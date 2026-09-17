@@ -44,6 +44,44 @@ impl RemoteClient {
         self.run(sql, args).await.map(|_| ())
     }
 
+    /// Runs several statements in one `/v2/pipeline` request with a single
+    /// close. Keeps leaf-first delete batches from leaving a partial remote
+    /// copy after a crash or timeout between round-trips.
+    pub async fn execute_batch(&self, statements: &[(&str, &[Value])]) -> Result<()> {
+        if statements.is_empty() {
+            return Ok(());
+        }
+
+        let mut requests = Vec::with_capacity(statements.len() + 1);
+        for (sql, args) in statements {
+            let args = args
+                .iter()
+                .map(value_to_json)
+                .collect::<Result<Vec<JsonValue>>>()?;
+            requests.push(json!({
+                "type": "execute",
+                "stmt": { "sql": sql, "args": args }
+            }));
+        }
+        requests.push(json!({ "type": "close" }));
+
+        let body = self.post(json!({ "requests": requests })).await?;
+        let results = body
+            .get("results")
+            .and_then(JsonValue::as_array)
+            .ok_or_else(|| AppError::Database("remote response had no results".to_string()))?;
+
+        for result in results {
+            if result.get("type").and_then(JsonValue::as_str) == Some("error") {
+                let message =
+                    error_message(result).unwrap_or_else(|| "remote statement failed".to_string());
+                return Err(AppError::Database(format!("remote: {message}")));
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn select(&self, sql: &str, args: &[Value]) -> Result<Vec<Vec<Value>>> {
         self.run(sql, args).await
     }
@@ -53,13 +91,38 @@ impl RemoteClient {
             .iter()
             .map(value_to_json)
             .collect::<Result<Vec<JsonValue>>>()?;
-        let body = json!({
-            "requests": [
-                { "type": "execute", "stmt": { "sql": sql, "args": args } },
-                { "type": "close" }
-            ]
-        });
+        let body = self
+            .post(json!({
+                "requests": [
+                    { "type": "execute", "stmt": { "sql": sql, "args": args } },
+                    { "type": "close" }
+                ]
+            }))
+            .await?;
 
+        let first = body
+            .get("results")
+            .and_then(|results| results.get(0))
+            .ok_or_else(|| AppError::Database("remote response had no results".to_string()))?;
+
+        if first.get("type").and_then(JsonValue::as_str) == Some("error") {
+            let message =
+                error_message(first).unwrap_or_else(|| "remote statement failed".to_string());
+            return Err(AppError::Database(format!("remote: {message}")));
+        }
+
+        let rows = first
+            .get("response")
+            .and_then(|response| response.get("result"))
+            .and_then(|result| result.get("rows"))
+            .and_then(JsonValue::as_array)
+            .cloned()
+            .unwrap_or_default();
+
+        rows.iter().map(row_to_values).collect()
+    }
+
+    async fn post(&self, body: JsonValue) -> Result<JsonValue> {
         let mut request = self.http.post(&self.endpoint).json(&body);
         if !self.token.is_empty() {
             request = request.bearer_auth(&self.token);
@@ -82,26 +145,7 @@ impl RemoteClient {
             )));
         }
 
-        let first = body
-            .get("results")
-            .and_then(|results| results.get(0))
-            .ok_or_else(|| AppError::Database("remote response had no results".to_string()))?;
-
-        if first.get("type").and_then(JsonValue::as_str) == Some("error") {
-            let message =
-                error_message(first).unwrap_or_else(|| "remote statement failed".to_string());
-            return Err(AppError::Database(format!("remote: {message}")));
-        }
-
-        let rows = first
-            .get("response")
-            .and_then(|response| response.get("result"))
-            .and_then(|result| result.get("rows"))
-            .and_then(JsonValue::as_array)
-            .cloned()
-            .unwrap_or_default();
-
-        rows.iter().map(row_to_values).collect()
+        Ok(body)
     }
 }
 

@@ -13,13 +13,30 @@ import type { Season } from "@/lib/types";
 type SeasonSectionProps = {
   mediaId: string;
   seasons: Season[];
+  resumeEpisodeId?: string | null;
 };
+
+function findInitialSeasonId(
+  seasons: Season[],
+  resumeEpisodeId?: string | null,
+): string {
+  if (resumeEpisodeId) {
+    const resumeSeason = seasons.find((season) =>
+      season.episodes.some((episode) => episode.id === resumeEpisodeId),
+    );
+    if (resumeSeason) return resumeSeason.id;
+  }
+  return seasons[0]?.id ?? "";
+}
 
 export default function SeasonSection({
   mediaId,
   seasons,
+  resumeEpisodeId,
 }: SeasonSectionProps) {
-  const [activeSeasonId, setActiveSeasonId] = useState(seasons[0]?.id ?? "");
+  const [activeSeasonId, setActiveSeasonId] = useState(() =>
+    findInitialSeasonId(seasons, resumeEpisodeId),
+  );
   const activeSeason =
     seasons.find((season) => season.id === activeSeasonId) ?? seasons[0];
 

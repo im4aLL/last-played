@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager};
 use turso::{params::Params, Connection, Value};
 
 use crate::config::DbMode;
+use crate::db::repositories::media_item;
 use crate::db::Database;
 use crate::error::{AppError, Result};
 use crate::services::remote::RemoteClient;
@@ -101,6 +102,16 @@ const WATCH_PROGRESS_TABLE: TableSync = TableSync {
     updated_at: Some("updated_at"),
 };
 
+/// Delete tombstones converge removals across devices. Insert-only, no
+/// last-write-wins; ids are UUIDs and never reused. Never garbage-collected
+/// yet (follow-up: drop a tombstone once all known devices acknowledge it).
+const DELETED_MEDIA_TABLE: TableSync = TableSync {
+    name: "deleted_media",
+    columns: &["id", "deleted_at"],
+    primary_key: &["id"],
+    updated_at: None,
+};
+
 /// Parent tables first so foreign keys resolve on both sides.
 const SYNCED_TABLES: &[TableSync] = &[
     DEVICE_TABLE,
@@ -130,6 +141,7 @@ const SCHEMA_TABLE_ORDER: &[&str] = &[
     "episode",
     "watch_progress",
     "video_file",
+    "deleted_media",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -335,10 +347,52 @@ async fn sync_once(database: &Database, remote: &RemoteClient, device_id: &str) 
     let connection = database.connect().await?;
 
     apply_remote_schema(&connection, remote).await?;
+    // Tombstones first: sync the set, apply deletes on both sides, then
+    // reconcile the rest. Otherwise an offline delete resurrects on pull
+    // (remote still has rows, local is missing) and a stale second device
+    // re-pushes its copy before seeing the delete.
+    reconcile_table(&connection, remote, &DELETED_MEDIA_TABLE).await?;
+    apply_tombstones(&connection, remote).await?;
     for table in SYNCED_TABLES {
         reconcile_table(&connection, remote, table).await?;
     }
     reconcile_device_video_files(&connection, remote, device_id).await?;
+
+    Ok(())
+}
+
+/// Deletes every tombstoned media id locally and remotely.
+///
+/// Runs after the tombstone set itself converges and before other tables
+/// reconcile, so neither pull nor push can resurrect a removed title.
+/// Both sides are idempotent (deleting a missing row affects 0 rows), and the
+/// shared `DELETE_ORDER` keeps the leaf-first order identical to the eager
+/// delete in `commands::media`.
+async fn apply_tombstones(connection: &Connection, remote: &RemoteClient) -> Result<()> {
+    let ids = media_item::list_tombstones(connection).await?;
+    if ids.is_empty() {
+        return Ok(());
+    }
+
+    for id in &ids {
+        let _ = media_item::delete_by_id(connection, id).await?;
+    }
+
+    let statements = media_item::delete_statements(false);
+    // One pipeline request for all tombstoned ids instead of N round-trips.
+    let mut owned: Vec<(String, Vec<Value>)> =
+        Vec::with_capacity(statements.len() * ids.len());
+    for id in &ids {
+        let value = Value::Text(id.clone());
+        for statement in &statements {
+            owned.push((statement.clone(), vec![value.clone()]));
+        }
+    }
+    let refs: Vec<(&str, &[Value])> = owned
+        .iter()
+        .map(|(sql, args)| (sql.as_str(), args.as_slice()))
+        .collect();
+    remote.execute_batch(&refs).await?;
 
     Ok(())
 }
@@ -485,6 +539,11 @@ fn with_if_not_exists(sql: &str, prefix: &str) -> String {
 /// Both sides are read before anything is written, so the comparison uses a
 /// consistent snapshot. Rows missing on one side are inserted; rows present on
 /// both sides are updated only when the newer `updated_at` wins.
+///
+/// Media deletes never flow through here: removals converge via the
+/// `deleted_media` tombstone table, reconciled and applied before this runs
+/// (see `sync_once` + `apply_tombstones`). Without that ordering a delete
+/// would resurrect on pull or be re-pushed by a stale device.
 async fn reconcile_table(
     connection: &Connection,
     remote: &RemoteClient,

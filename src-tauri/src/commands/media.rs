@@ -6,8 +6,10 @@ use uuid::Uuid;
 use crate::db::repositories::{
     episode as episode_repo, media_item as media_repo, season as season_repo,
 };
+use crate::db::Database;
 use crate::domain::{Episode, MediaItem, MediaType, Season};
 use crate::error::{AppError, Result};
+use crate::services::remote::RemoteClient;
 use crate::services::tmdb::{
     backdrop_url, poster_url, still_url, MediaMetadata, SeasonMetadata, TmdbClient,
     TmdbSearchResult,
@@ -180,14 +182,133 @@ pub async fn add_media_from_tmdb(
 pub async fn refresh_metadata(state: State<'_, AppState>, media_id: String) -> Result<AddedMedia> {
     let database = state.database().await?;
     let connection = database.connect().await?;
-    let item = media_repo::find_by_id(&connection, &media_id)
+    let item = media_repo::find_by_id(&connection, media_id.trim())
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("media item {media_id}")))?;
+        .ok_or_else(|| AppError::NotFound(format!("media item {}", media_id.trim())))?;
 
     let metadata = client(&state)?
         .fetch_metadata(item.media_type, item.tmdb_id)
         .await?;
     persist(&state, &metadata).await
+}
+
+#[tauri::command]
+pub async fn delete_media(state: State<'_, AppState>, media_id: String) -> Result<()> {
+    let media_id = media_id.trim().to_string();
+
+    if media_id.is_empty() {
+        return Err(AppError::NotFound("media-id-required".to_string()));
+    }
+
+    // Deferred: no guard for delete-while-playing. If /player/:id is open for
+    // the same id, delete succeeds and the player keeps its current file link
+    // with no signal. Out of scope for this increment.
+    let database = state.database().await?;
+    let connection = database.connect().await?;
+
+    // Existence is checked inside the Immediate transaction so two concurrent
+    // deletes serialize instead of racing between check and write. turso
+    // `Transaction` defaults to `DropBehavior::Rollback`, applied on the next
+    // connection use via `dangling_tx`; error paths below still call
+    // `rollback()` explicitly to keep the intent obvious.
+    let transaction =
+        Transaction::new_unchecked(&connection, TransactionBehavior::Immediate).await?;
+    let exists = media_repo::find_by_id(&transaction, &media_id)
+        .await?
+        .is_some();
+    if !exists {
+        let tombstoned = media_repo::is_tombstoned(&connection, &media_id).await?;
+        transaction.rollback().await?;
+        if !tombstoned {
+            return Err(AppError::NotFound(format!("media item {media_id}")));
+        }
+        // Idempotent retry: local is already gone (e.g. a prior attempt
+        // committed locally then failed remotely). Finish the remote cleanup
+        // instead of dead-ending on NotFound.
+        ensure_remote_deleted(&state, &database, &media_id).await?;
+        state.trigger_sync().await;
+        return Ok(());
+    }
+
+    let affected = media_repo::delete_by_id(&transaction, &media_id).await?;
+    media_repo::record_tombstone(&transaction, &media_id).await?;
+    // `affected == 0` means a concurrent delete won the race inside the
+    // Immediate transaction. The tombstone commit above still converges the
+    // delete, so fall through as success (idempotent) rather than NotFound.
+    let _ = affected;
+    transaction.commit().await?;
+
+    if let Some(remote) = database.remote() {
+        // Offline deletes are local-authoritative: return Ok after the local
+        // commit and stay dirty so the tombstone push happens on reconnect.
+        // Do not surface a remote timeout as a failure when offline.
+        if !state.sync_manager().is_online() {
+            state.trigger_sync().await;
+            return Ok(());
+        }
+        delete_remote_media(remote, &media_id).await?;
+    }
+
+    state.trigger_sync().await;
+
+    Ok(())
+}
+
+/// Best-effort remote completion for the idempotent retry path. Offline is not
+/// an error: the local tombstone stays dirty and converges on reconnect.
+async fn ensure_remote_deleted(
+    state: &AppState,
+    database: &Database,
+    media_id: &str,
+) -> Result<()> {
+    let Some(remote) = database.remote() else {
+        return Ok(());
+    };
+    if !state.sync_manager().is_online() {
+        return Ok(());
+    }
+    delete_remote_media(remote, media_id).await
+}
+
+/// Eager remote delete plus tombstone insert so a locally removed title is not
+/// resurrected by the next pull.
+///
+/// Deletes converge via the `deleted_media` tombstone table, which sync
+/// reconciles before other tables and then applies (see `services::sync`).
+/// A single batch keeps the five leaf-first deletes and the tombstone insert
+/// in one `/v2/pipeline` request instead of five round-trips. Tombstones are
+/// never garbage-collected yet; ids are UUIDs and never reused, so replay is
+/// safe. Multi-device convergence still requires every device to sync at
+/// least once after the delete.
+async fn delete_remote_media(remote: &RemoteClient, media_id: &str) -> Result<()> {
+    use turso::Value;
+
+    let id = Value::Text(media_id.to_string());
+    let mut owned: Vec<(String, Vec<Value>)> =
+        Vec::with_capacity(media_repo::DELETE_ORDER.len() + 2);
+    owned.push((
+        "CREATE TABLE IF NOT EXISTS deleted_media (
+            id TEXT PRIMARY KEY,
+            deleted_at TEXT NOT NULL
+        )"
+        .to_string(),
+        Vec::new(),
+    ));
+    for statement in media_repo::delete_statements(false) {
+        owned.push((statement, vec![id.clone()]));
+    }
+    owned.push((
+        "INSERT OR IGNORE INTO deleted_media (id, deleted_at)
+         VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+            .to_string(),
+        vec![id],
+    ));
+
+    let refs: Vec<(&str, &[Value])> = owned
+        .iter()
+        .map(|(sql, args)| (sql.as_str(), args.as_slice()))
+        .collect();
+    remote.execute_batch(&refs).await
 }
 
 async fn persist(state: &AppState, metadata: &MediaMetadata) -> Result<AddedMedia> {

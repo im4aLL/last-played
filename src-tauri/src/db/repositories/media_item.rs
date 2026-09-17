@@ -356,3 +356,84 @@ pub async fn find_by_tmdb(
         None => Ok(None),
     }
 }
+
+/// Removes a media item and every row that references it.
+///
+/// The schema declares `ON DELETE CASCADE`, but foreign-key enforcement is not
+/// enabled on either connection, so deletes are ordered leaf-first in one
+/// transaction instead of relying on the database to cascade.
+///
+/// `DELETE_ORDER` is the single source of truth for that leaf-first order.
+/// Both the local `delete_by_id` and the remote batch in
+/// `commands::media::delete_media` generate their SQL from it, so adding a
+/// future table that references `media_item(id)` only needs one update here.
+pub const DELETE_ORDER: &[(&str, &str)] = &[
+    ("watch_progress", "media_item_id"),
+    ("video_file", "media_item_id"),
+    ("episode", "media_item_id"),
+    ("season", "media_item_id"),
+    ("media_item", "id"),
+];
+
+/// Builds `DELETE FROM {table} WHERE {column} = ?` SQL from `DELETE_ORDER`.
+/// `numbered` selects local `?1` vs remote `?` placeholders.
+pub fn delete_statements(numbered: bool) -> Vec<String> {
+    DELETE_ORDER
+        .iter()
+        .map(|(table, column)| {
+            let placeholder = if numbered { "?1" } else { "?" };
+            format!("DELETE FROM {table} WHERE {column} = {placeholder}")
+        })
+        .collect()
+}
+
+pub async fn delete_by_id(conn: &Connection, id: &str) -> Result<u64> {
+    let statements = delete_statements(true);
+    for statement in &statements[..statements.len() - 1] {
+        conn.execute(statement.as_str(), (id,))
+            .await
+            .map_err(AppError::from)?;
+    }
+
+    let affected = conn
+        .execute(statements.last().expect("DELETE_ORDER is non-empty").as_str(), (id,))
+        .await
+        .map_err(AppError::from)?;
+
+    Ok(affected)
+}
+
+/// Records a delete tombstone so sync can propagate the removal instead of
+/// resurrecting it. Tombstones are insert-only and never garbage-collected yet;
+/// ids are UUIDs and never reused, so replay is safe.
+pub async fn record_tombstone(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO deleted_media (id, deleted_at)
+         VALUES (?1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+        (id,),
+    )
+    .await
+    .map_err(AppError::from)?;
+    Ok(())
+}
+
+pub async fn list_tombstones(conn: &Connection) -> Result<Vec<String>> {
+    let mut rows = conn
+        .query("SELECT id FROM deleted_media", ())
+        .await
+        .map_err(AppError::from)?;
+    let mut ids = Vec::new();
+    while let Some(row) = rows.next().await.map_err(AppError::from)? {
+        let id: String = row.get(0)?;
+        ids.push(id);
+    }
+    Ok(ids)
+}
+
+pub async fn is_tombstoned(conn: &Connection, id: &str) -> Result<bool> {
+    let mut rows = conn
+        .query("SELECT 1 FROM deleted_media WHERE id = ?1", (id,))
+        .await
+        .map_err(AppError::from)?;
+    Ok(rows.next().await.map_err(AppError::from)?.is_some())
+}

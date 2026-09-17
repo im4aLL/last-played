@@ -102,7 +102,7 @@ function DockMenuButton({
         className,
       )}
     >
-      <span className="truncate">{value}</span>
+      <span className="min-w-0 flex-1 truncate text-left">{value}</span>
       <ChevronDown
         className={cn("shrink-0 transition-transform", active && "rotate-180")}
       />
@@ -124,11 +124,11 @@ function MenuOption({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm text-white hover:bg-white/10",
+        "flex w-full min-w-0 items-center justify-between gap-3 rounded px-2 py-1.5 text-left text-sm text-white hover:bg-white/10",
         selected && "bg-white/10",
       )}
     >
-      <span className="truncate">{children}</span>
+      <span className="min-w-0 flex-1 truncate">{children}</span>
       {selected ? <Check className="size-4 shrink-0" /> : null}
     </button>
   );
@@ -230,12 +230,12 @@ function EpisodesPanel({
               disabled={!item.filePath}
               onClick={() => onSelect(item.id)}
               className={cn(
-                "flex w-full flex-col gap-1.5 rounded px-2 py-1.5 text-left text-sm text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40",
+                "flex w-full min-w-0 flex-col gap-1.5 rounded px-2 py-1.5 text-left text-sm text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40",
                 isCurrent && "bg-white/10",
               )}
             >
-              <span className="flex w-full items-center justify-between gap-3">
-                <span className="truncate">
+              <span className="flex w-full min-w-0 items-center justify-between gap-3">
+                <span className="min-w-0 flex-1 truncate">
                   {item.subtitle ?? `Episode ${item.episodeNumber}`}
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5 text-xs text-white/50">

@@ -92,6 +92,10 @@ export function refreshMetadata(mediaId: string): Promise<AddedMedia> {
   return invoke<AddedMedia>("refresh_metadata", { mediaId });
 }
 
+export function deleteMedia(mediaId: string): Promise<void> {
+  return invoke<void>("delete_media", { mediaId });
+}
+
 export function listMedia(input: {
   filter: LibraryFilter;
   limit: number;

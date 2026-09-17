@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.0 - 2026-09-17
+
+Remove media from the library with multi-device delete propagation, plus small playback and setup polish.
+
+- Added: Remove button on the media detail hero with a confirm dialog that deletes the title, its linked files, and watch history, then returns to the library.
+- Added: delete propagation via a `deleted_media` tombstone table synced before other tables, so offline deletes succeed locally and converge on reconnect without resurrection.
+- Added: macOS DMG installer window with custom background artwork.
+- Changed: TV detail opens on the resume season when there is in-progress playback instead of always starting on Season 1.
+- Changed: remote deletes and tombstone application run in a single pipeline batch per sync to avoid partial remote copies.
+- Fixed: player episode and track menu labels truncate cleanly instead of overflowing.
+- Fixed: refresh metadata trims the media id before lookup so pasted ids cannot miss.
+
 ## 1.1.0 - 2026-09-16
 
 Offline support: the app now degrades gracefully with no internet while the local library, scanning, linking, playback, and watch progress keep working unchanged.
